@@ -212,6 +212,23 @@
   }
   .fab:active { transform: scale(.92); }
   .fab svg { width: 28px; height: 28px; }
+  /* Пружинный "поп"-отклик при нажатии — на всех кнопках/тоглах приложения */
+  @keyframes btnPop {
+    0% { transform: scale(1); }
+    35% { transform: scale(.88); }
+    60% { transform: scale(1.08); }
+    80% { transform: scale(.98); }
+    100% { transform: scale(1); }
+  }
+  @keyframes fabPop {
+    0% { transform: scale(1) rotate(0deg); }
+    30% { transform: scale(.86) rotate(-6deg); }
+    60% { transform: scale(1.14) rotate(4deg); }
+    80% { transform: scale(.97) rotate(-1deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+  .pop { animation: btnPop .4s cubic-bezier(.34,1.56,.64,1); }
+  .fab.pop { animation: fabPop .5s cubic-bezier(.34,1.56,.64,1); }
 
   /* ============ Шторки / модалки ============ */
   .scrim { position: fixed; inset: 0; z-index: 40; background: rgba(10,12,15,.55);
@@ -235,6 +252,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .sheet, .scrim, .fab { transition: none; }
+    .pop, .fab.pop { animation: none; }
   }
 
   /* ============ Карточки записей ============ */
@@ -739,6 +757,18 @@ function openSheet(title, html) {
 function closeSheet() {
   document.getElementById("scrim").classList.remove("open");
   document.getElementById("sheet").classList.remove("open");
+}
+
+/* ---------- Пружинный отклик на нажатие кнопок ---------- */
+function initButtonPop() {
+  const SEL = ".iconbtn, .fab, .btn, .typebtn, .togchip, .seg button, .switch, .rec .acts button";
+  document.addEventListener("click", e => {
+    const btn = e.target.closest(SEL);
+    if (!btn) return;
+    btn.classList.remove("pop");
+    void btn.offsetWidth; // форсируем reflow, чтобы анимация перезапускалась и при быстрых повторных нажатиях
+    btn.classList.add("pop");
+  });
 }
 
 /* ---------- Свайп вниз для закрытия шторки ---------- */
@@ -1333,6 +1363,7 @@ async function init() {
   goToday();
   initSwipe();
   initSheetDrag();
+  initButtonPop();
   scheduleTodayReminders();
   if (state.records.length) setTimeout(checkWeeklyBackup, 1500);
 
