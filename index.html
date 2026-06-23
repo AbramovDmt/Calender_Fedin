@@ -894,14 +894,14 @@ function confirmDelete(id, s) {
   });
 }
 let toastTimer = null;
-function showToast(msg, actionLabel, action) {
+function showToast(msg, actionLabel, action, ms) {
   const t = document.getElementById("toast");
   document.getElementById("toastMsg").textContent = msg;
   const ab = document.getElementById("toastAction");
   if (actionLabel) { ab.textContent = actionLabel; ab.style.display = ""; ab.onclick = () => { action && action(); hideToast(); }; }
   else ab.style.display = "none";
   t.classList.add("show");
-  clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 4000);
+  clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, ms || 4000);
 }
 function hideToast() { document.getElementById("toast").classList.remove("show"); }
 
@@ -1198,6 +1198,17 @@ function exportJson() {
   download(`moy-calendar-${todayStr()}.json`, JSON.stringify(state, null, 2), "application/json");
   showToast("Данные выгружены", "", null);
 }
+/* Раз в неделю: пробуем тихо скачать бэкап автоматически (может не сработать в Safari — это ограничение
+   браузера, не наше) и в любом случае показываем напоминание с кнопкой как надёжный запасной вариант.
+   Дату последнего бэкапа обновляем только по явному нажатию кнопки — иначе при тихой блокировке
+   на iOS напоминание могло бы больше не появиться, хотя файл не сохранился. */
+function checkWeeklyBackup() {
+  const last = state.settings.lastBackupAt;
+  const days = last ? (Date.now() - new Date(last).getTime()) / 86400000 : Infinity;
+  if (days < 7) return;
+  try { download(`moy-calendar-${todayStr()}.json`, JSON.stringify(state, null, 2), "application/json"); } catch (e) {}
+  showToast("Бэкап давно не делали — сохрани файл на всякий случай", "Сделать бэкап", exportJson, 9000);
+}
 function exportCsv() {
   const head = ["Тип","Дата","Дата2","Время","Название/Гость","Телефон","Сумма","Комментарий"];
   const rows = state.records.map(r => {
@@ -1304,6 +1315,7 @@ async function init() {
   initSwipe();
   initSheetDrag();
   scheduleTodayReminders();
+  if (state.records.length) setTimeout(checkWeeklyBackup, 1500);
 
   document.getElementById("prevM").onclick = () => shiftMonth(-1);
   document.getElementById("nextM").onclick = () => shiftMonth(1);
