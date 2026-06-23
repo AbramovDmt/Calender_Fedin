@@ -44,9 +44,8 @@
     --bg: #F2F3F5; --surface: #FFFFFF; --surface-2: #E7E9EC; --border: #C7CBD1;
     --text: #15171A; --text-muted: #5B6168;
     --accent: #6789A8; --accent-soft: #E1EAF5;
-    --sauna-soft: #FBE6C8;
     --success: #D97706; --warning: #D97706; --danger: #C13B30;
-    --event: #DD8A4A; --reminder: #8A7FA0;
+    --event: #DD8A4A;
     --shadow: 0 2px 6px rgba(15,17,20,.12);
     --cell-shadow: inset -9px -9px 12px -10px rgba(15,17,20,.22);
     --weekend-bg: #ECEDF0;
@@ -65,9 +64,8 @@
     --bg: #121316; --surface: #1B1D21; --surface-2: #24262B; --border: #383B42;
     --text: #E7E9EC; --text-muted: #9AA0A8;
     --accent: #7698CA; --accent-soft: #1B2F45;
-    --sauna-soft: #2E2414;
     --success: #E8A23C; --warning: #E8A23C; --danger: #E0584C;
-    --event: #DD8A4A; --reminder: #A79BC0;
+    --event: #DD8A4A;
     --shadow: 0 2px 8px rgba(0,0,0,.5);
     --cell-shadow: inset -9px -9px 14px -10px rgba(0,0,0,.6);
     --weekend-bg: #202227;
@@ -81,9 +79,8 @@
       --bg: #121316; --surface: #1B1D21; --surface-2: #24262B; --border: #383B42;
       --text: #E7E9EC; --text-muted: #9AA0A8;
       --accent: #7698CA; --accent-soft: #1B2F45;
-      --sauna-soft: #2E2414;
       --success: #E8A23C; --warning: #E8A23C; --danger: #E0584C;
-      --event: #DD8A4A; --reminder: #A79BC0;
+      --event: #DD8A4A;
       --shadow: 0 2px 8px rgba(0,0,0,.5);
       --cell-shadow: inset -9px -9px 14px -10px rgba(0,0,0,.6);
       --weekend-bg: #202227;
@@ -266,7 +263,6 @@
   .rec.bath { border-left-color: var(--terracotta); }
   .rec.work { border-left-color: var(--work-green); padding-top: 8px; padding-bottom: 8px; }
   .rec.event { border-left-color: var(--event); }
-  .rec.reminder { border-left-color: var(--reminder); }
   .rec.done { opacity: .55; }
   .rec.done .ttl { text-decoration: line-through; }
   .day-total { text-align: right; font-weight: 700; margin: 4px 0 12px; color: var(--text-muted); }
@@ -505,7 +501,6 @@ function dayIncome(s) {
   }
   return sum;
 }
-function rangeIncome(a, b) { let s = 0, cur = a; while (cur <= b) { s += dayIncome(cur); cur = addDays(cur, 1); } return s; }
 function monthStats(y, m) {
   const dim = daysInMonth(y, m);
   const first = ymd(y, m, 1), last = ymd(y, m, dim);
@@ -556,7 +551,7 @@ function render() {
       cell.innerHTML = `
         <span class="daynum num${we ? ' we' : ''}">${day.d}</span>
         ${others.length ? `<span class="event-ind"></span>` : ``}
-        ${(bookInc||bathInc) ? `<span class="book-price num">${compact(bookInc||bathInc)}</span>` : ``}
+        ${(bookInc+bathInc) ? `<span class="book-price num">${compact(bookInc+bathInc)}</span>` : ``}
         ${workRecs.length ? `<div class="work-stack">
           ${(() => {
             const n = workRecs.length;
@@ -826,6 +821,7 @@ function dayHTML(s) {
 }
 function recCard(r, s) {
   const t = TYPES[r.type];
+  if (!t) return "";
   let title = "", meta = "", amount = "", chips = "", time = "";
   if (r.type === "booking") {
     title = r.guestName || "Бронь";
@@ -874,7 +870,7 @@ function bindDayActions(s) {
       btn.onclick = (e) => {
         e.stopPropagation();
         const act = btn.dataset.act;
-        if (act === "edit") openForm(findRec(id).type, s, id);
+        if (act === "edit") { const rec = findRec(id); if (rec) openForm(rec.type, s, id); }
         else if (act === "del") confirmDelete(id, s);
       };
     });
@@ -994,7 +990,7 @@ function openForm(type, day, editId) {
       <button class="btn primary" id="f-save">Сохранить</button>
     </div>`;
 
-  openSheet(`<span class="titico" style="color:${TYPE_COLOR[type]}">${ic(type,20)}</span> ${editId?"Изменить · ":""}${TYPES[type].name}`, body);
+  openSheet(`<span style="color:${TYPE_COLOR[type]}">${ic(type,20)}</span> ${editId?"Изменить · ":""}${TYPES[type].name}`, body);
   bindForm(type, day, editId);
 }
 
@@ -1075,10 +1071,24 @@ function bindLiveFormat(id, fmt, snapEnd) {
   if (!el) return;
   el.value = fmt(el.value);
   el.addEventListener("input", () => {
-    const pos = el.selectionStart;
-    el.value = fmt(el.value);
-    const caret = snapEnd ? el.value.length : pos;
-    el.setSelectionRange(caret, caret);
+    if (snapEnd) {
+      // телефон/деньги: переформатирование меняет позиции разделителей — держим курсор после той же N-й цифры,
+      // а не всегда в конце, иначе правка не с конца строки была бы невозможна
+      const digitsBefore = digitsOnly(el.value.slice(0, el.selectionStart)).length;
+      el.value = fmt(el.value);
+      let i = 0;
+      if (digitsBefore > 0) {
+        let seen = 0;
+        for (; i < el.value.length; i++) {
+          if (/\d/.test(el.value[i])) { seen++; if (seen === digitsBefore) { i++; break; } }
+        }
+      }
+      el.setSelectionRange(i, i);
+    } else {
+      const pos = el.selectionStart;
+      el.value = fmt(el.value);
+      el.setSelectionRange(pos, pos);
+    }
   });
 }
 
@@ -1089,17 +1099,17 @@ function saveForm(type, day, editId, extras, depTaken, notify) {
 
   if (type === "booking") {
     const guest = val("f-guest"), ci = val("f-ci"), co = val("f-co"), price = numVal("f-price");
-    if (!guest || !ci || !co || !(co > ci) || !price) return flash("Заполните имя, даты (выезд позже заезда) и стоимость");
+    if (!guest || !ci || !co || !(co > ci) || val("f-price") === "") return flash("Заполните имя, даты (выезд позже заезда) и стоимость");
     Object.assign(rec, { guestName: guest, phone: val("f-phone"), checkIn: ci, checkInTime: val("f-cit"), checkOut: co, checkOutTime: val("f-cot"), price, extras, deposit: dep, comment: val("f-comment") });
     rememberClient(guest, rec.phone);
   } else if (type === "bath") {
     const date = val("f-date"), from = val("f-from"), to = val("f-to"), price = numVal("f-price");
-    if (!date || !from || !to || !price) return flash("Дата, время с–по и стоимость обязательны");
+    if (!date || !from || !to || val("f-price") === "") return flash("Дата, время с–по и стоимость обязательны");
     Object.assign(rec, { guestName: val("f-guest"), phone: val("f-phone"), date, fromTime: from, toTime: to, price, extras, deposit: dep, comment: val("f-comment") });
     rememberClient(rec.guestName, rec.phone);
   } else if (type === "work") {
     const title = val("f-title"), date = val("f-date"), amount = numVal("f-amount");
-    if (!title || !date || !amount) return flash("Название, дата и сумма обязательны");
+    if (!title || !date || val("f-amount") === "") return flash("Название, дата и сумма обязательны");
     Object.assign(rec, { title, date, time: val("f-time"), contactName: val("f-contact"), phone: val("f-phone"), amount, notify, comment: val("f-comment") });
     rememberClient(rec.contactName, rec.phone);
     if (notify) ensureNotifyPermission();
@@ -1220,6 +1230,13 @@ function exportCsv() {
   const csv = [head, ...rows].map(row => row.map(c => `"${String(c==null?"":c).replace(/"/g,'""')}"`).join(";")).join("\r\n");
   download(`moy-calendar-${todayStr()}.csv`, "﻿" + csv, "text/csv");
 }
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// Битая/руками изменённая запись не должна ронять render() после импорта — отсеиваем до сохранения state.
+function validRecord(r) {
+  if (!r || typeof r !== "object" || !TYPES[r.type]) return false;
+  if (r.type === "booking") return DATE_RE.test(r.checkIn) && DATE_RE.test(r.checkOut) && r.checkOut > r.checkIn;
+  return DATE_RE.test(r.date);
+}
 function importJson(e) {
   const file = e.target.files[0]; if (!file) return;
   const reader = new FileReader();
@@ -1227,11 +1244,13 @@ function importJson(e) {
     try {
       const data = JSON.parse(reader.result);
       if (!data || !Array.isArray(data.records)) throw 0;
+      const records = data.records.filter(validRecord);
+      const skipped = data.records.length - records.length;
       try { localStorage.setItem("mc-backup", JSON.stringify(state)); } catch (_) {}
-      state = Object.assign({ version:1, settings:{theme:"system",currency:"₽",notifications:false,lastBackupAt:null}, records:[], clients:[] }, data);
+      state = Object.assign({ version:1, settings:{theme:"system",currency:"₽",notifications:false,lastBackupAt:null}, records:[], clients:[] }, data, { records });
       if (!state.clients) state.clients = [];
       save(); setTheme(state.settings.theme||"system"); render(); closeSheet();
-      showToast("Данные загружены", "", null);
+      showToast(skipped ? `Загружено. Пропущено повреждённых записей: ${skipped}` : "Данные загружены", "", null);
     } catch (_) { showToast("Не удалось прочитать файл", "", null); }
   };
   reader.readAsText(file);
