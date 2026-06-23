@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="system">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#F7F8FA">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Мой Календарь</title>
+<script>
+  // Тема до первой отрисовки — без мигания. Зеркалим в localStorage (IDB асинхронный).
+  (function () {
+    try {
+      var t = localStorage.getItem('mc-theme') || 'system';
+      document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+<style>
+  /* ============ Дизайн-система «Тёплый дом» ============ */
+  :root {
+    color-scheme: light;
+    --bg: #F7F8FA; --surface: #FFFFFF; --surface-2: #F1F3F5; --border: #E7EAEE;
+    --text: #1B1D21; --text-muted: #6B7280;
+    --accent: #1F7A5C; --accent-soft: #E4F2EB; --accent-cap: #7FC1A6;
+    --sauna: #E0902E; --sauna-soft: #FBEBD6;
+    --success: #1F7A5C; --warning: #E0902E; --danger: #E05545;
+    --work: #0E9E8E; --event: #5B6CF0; --reminder: #9B6BE8;
+    --shadow: 0 4px 16px rgba(20,30,50,.07);
+    --r-card: 18px; --r-sheet: 24px; --r-chip: 12px;
+    --font-display: "Unbounded", "Segoe UI", system-ui, sans-serif;
+    --font-ui: "Manrope", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-t: env(safe-area-inset-top, 0px);
+  }
+  :root[data-theme="dark"] { color-scheme: dark;
+    --bg: #0F1216; --surface: #181B20; --surface-2: #21252B; --border: #2A2F37;
+    --text: #E6E8EB; --text-muted: #9AA1AC;
+    --accent: #34A578; --accent-soft: #16312A; --accent-cap: #8FD3B6;
+    --sauna: #E0A158; --sauna-soft: #2E2614;
+    --success: #34A578; --warning: #E0A158; --danger: #E5675C;
+    --work: #2DB3A6; --event: #7C83F3; --reminder: #A684F0;
+    --shadow: 0 6px 22px rgba(0,0,0,.45);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root[data-theme="system"] { color-scheme: dark;
+      --bg: #0F1216; --surface: #181B20; --surface-2: #21252B; --border: #2A2F37;
+      --text: #E6E8EB; --text-muted: #9AA1AC;
+      --accent: #34A578; --accent-soft: #16312A; --accent-cap: #8FD3B6;
+      --sauna: #E0A158; --sauna-soft: #2E2614;
+      --success: #34A578; --warning: #E0A158; --danger: #E5675C;
+      --work: #2DB3A6; --event: #7C83F3; --reminder: #A684F0;
+      --shadow: 0 6px 22px rgba(0,0,0,.45);
+    }
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-ui);
+    background: var(--bg); color: var(--text);
+    font-size: 16px; line-height: 1.35;
+    overscroll-behavior-y: contain;
+    -webkit-user-select: none; user-select: none;
+    min-height: 100vh;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  button { font-family: inherit; color: inherit; cursor: pointer; border: none; background: none; }
+  input, textarea, select { font-family: inherit; font-size: 16px; }
+
+  /* ============ Каркас ============ */
+  #app { max-width: 560px; margin: 0 auto; min-height: 100vh; padding-bottom: 130px; display: flex; flex-direction: column; }
+
+  header.topbar {
+    position: sticky; top: 0; z-index: 30;
+    padding: calc(var(--safe-t) + 12px) 16px 12px;
+    display: flex; align-items: center; gap: 8px;
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .month-title { position: absolute; left: 50%; transform: translateX(-50%); pointer-events: none;
+    text-align: center; font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: .2px; }
+  .month-title small { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); font-family: var(--font-ui); }
+  header.topbar #prevM { margin-right: auto; }
+  .iconbtn { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; color: var(--text); }
+  .iconbtn:active { background: var(--surface-2); }
+  .iconbtn.sm { width: 40px; height: 40px; }
+  svg { display: block; }
+
+  /* ============ Сетка месяца ============ */
+  .weekdays { display: grid; grid-template-columns: repeat(7,1fr); margin: 8px 12px 0; }
+  .weekdays span { text-align: center; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; padding: 4px 0; }
+  .weekdays span.we { font-size: 12px; font-weight: 800; color: var(--text); }
+
+  .grid { margin: 6px 12px 12px; border-radius: 14px; overflow: hidden;
+          background: var(--surface); box-shadow: var(--shadow);
+          border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+          flex: 1; display: flex; flex-direction: column; }
+  .week { position: relative; flex: 1; display: flex; flex-direction: column; }
+  .week-row { display: grid; grid-template-columns: repeat(7,1fr); flex: 1; }
+  .cell {
+    position: relative; min-height: 72px;
+    border-top: 1px solid var(--border); border-left: 1px solid var(--border);
+    background: var(--surface); text-align: left;
+  }
+  .book-price { position: absolute; top: 8px; left: 33px; font-size: 11px; font-weight: 700;
+    color: var(--success); white-space: nowrap; overflow: hidden; max-width: calc(100% - 37px); }
+  .cell:active { background: var(--surface-2); }
+  .cell.out { background: var(--bg); }
+  .daynum { position: absolute; top: 5px; left: 6px; width: 24px; height: 24px;
+            display: grid; place-items: center; font-size: 14px; font-weight: 600;
+            border-radius: 50%; color: var(--text); }
+  .daynum.we { font-size: 16px; font-weight: 800; }
+  .cell.out .daynum { color: var(--text-muted); opacity: .5; }
+  .cell.today .daynum { background: var(--accent); color: #fff; }
+  .bath-chip { position: absolute; top: 6px; right: 5px;
+    display: inline-flex; align-items: center; gap: 2px; color: var(--sauna);
+    font-size: 9px; font-weight: 700; }
+  .bath-chip svg { width: 13px; height: 13px; }
+  /* Брони — горизонтальные полосы поверх ячеек (сетка не заливается) */
+  .bars { position: absolute; inset: 0; pointer-events: none; }
+  .bar { position: absolute; height: 20px; border-radius: 10px; background: var(--accent);
+         color: #fff; font-size: 11px; font-weight: 700; line-height: 20px;
+         display: flex; align-items: center; gap: 5px; padding: 0 8px; overflow: hidden; }
+  .bar.sq-l { border-top-left-radius: 0; border-bottom-left-radius: 0; padding-left: 4px; }
+  .bar.sq-r { border-top-right-radius: 0; border-bottom-right-radius: 0; padding-right: 4px; }
+  .bar .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cap-in { width: 7px; height: 7px; border-radius: 50%; background: #fff; flex: none; }
+  .cap-out { width: 7px; height: 7px; border-radius: 50%; border: 2px solid #fff; box-sizing: border-box; flex: none; }
+  .cell-foot { position: absolute; left: 6px; right: 6px; bottom: 6px;
+    display: flex; align-items: center; gap: 5px; min-height: 14px; }
+  .dots { display: flex; flex-direction: column; gap: 3px; align-items: stretch; flex: 1; }
+  .fstrip { width: 100%; height: 5px; border-radius: 3px; }
+  .fstrip.work { background: var(--work); } .fstrip.event { background: var(--event); } .fstrip.reminder { background: var(--reminder); }
+  .more { font-size: 9px; color: var(--text-muted); font-weight: 700; }
+  .day-money { font-size: 11px; font-weight: 700; color: var(--success); }
+
+  /* ============ Итог месяца (bento) ============ */
+  .summary {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+    max-width: 560px; margin: 0 auto;
+    padding: 12px 14px calc(var(--safe-b) + 12px);
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 8px;
+  }
+  .bento { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 9px 12px; }
+  .bento .lbl { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+  .bento .val { font-family: var(--font-display); font-weight: 700; font-size: 18px; margin-top: 2px; }
+  .bento.income .val { color: var(--success); font-size: 20px; }
+  .bento.income { cursor: pointer; }
+  .bento .lbl .ic { color: var(--text-muted); margin-left: 2px; }
+
+  .stat-total { text-align: center; padding: 6px 0 10px; }
+  .stat-total .big { font-family: var(--font-display); font-size: 30px; font-weight: 700; color: var(--success); margin-top: 2px; }
+  .stat-line { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; font-weight: 600; }
+  .stat-line span { display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
+  .statbar { height: 8px; background: var(--surface-2); border-radius: 999px; margin-top: 6px; overflow: hidden; }
+  .statbar > div { height: 100%; border-radius: 999px; min-width: 2px; transition: width .3s; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 18px; }
+  .stat-grid .bento { text-align: center; }
+
+  .fab {
+    position: fixed; z-index: 26; right: 16px; bottom: calc(var(--safe-b) + 96px);
+    width: 60px; height: 60px; border-radius: 20px; background: var(--accent); color: #fff;
+    display: grid; place-items: center; box-shadow: var(--shadow);
+    transition: transform .15s;
+  }
+  .fab:active { transform: scale(.92); }
+  .fab svg { width: 28px; height: 28px; }
+
+  /* ============ Шторки / модалки ============ */
+  .scrim { position: fixed; inset: 0; z-index: 40; background: rgba(20,12,8,.45);
+           opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 41;
+    max-width: 560px; margin: 0 auto;
+    background: var(--surface); border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+    box-shadow: var(--shadow); transform: translateY(110%);
+    transition: transform .32s cubic-bezier(.2,.8,.2,1);
+    max-height: 90vh; display: flex; flex-direction: column;
+    padding-bottom: var(--safe-b);
+  }
+  .sheet.open { transform: translateY(0); }
+  .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--border); margin: 10px auto 4px; }
+  .sheet-head { display: flex; align-items: center; gap: 8px; padding: 4px 16px 10px; }
+  .sheet-head h2 { font-family: var(--font-display); font-size: 18px; margin: 0; flex: 1; font-weight: 700; }
+  .sheet-head h2 small { display:block; font-family: var(--font-ui); font-size:12px; color: var(--text-muted); font-weight:500; }
+  .sheet-body { overflow-y: auto; padding: 0 16px 16px; -webkit-overflow-scrolling: touch; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sheet, .scrim, .fab { transition: none; }
+  }
+
+  /* ============ Карточки записей ============ */
+  .rec { display: flex; gap: 10px; padding: 12px; background: var(--surface);
+         border: 1px solid var(--border); border-left: 4px solid var(--border);
+         border-radius: 14px; margin-bottom: 8px; box-shadow: var(--shadow); }
+  .ic { display: inline-block; vertical-align: middle; flex: none; }
+  .rec .recico { display: grid; place-items: center; padding-top: 1px; }
+  .rec.b .recico { color: var(--accent); } .rec.bath .recico { color: var(--sauna); }
+  .rec.work .recico { color: var(--work); } .rec.event .recico { color: var(--event); }
+  .chip .ic, .togchip .ic { margin-right: 2px; }
+  .rec .body { flex: 1; min-width: 0; }
+  .rec .ttl { font-weight: 700; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .rec .ttl .time { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+  .rec .meta { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .rec .amount { font-weight: 700; color: var(--success); white-space: nowrap; }
+  .rec .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .chip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); }
+  .chip.on { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+  .rec .acts { display: flex; flex-direction: column; gap: 6px; }
+  .rec .acts button { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); }
+  .rec.b { border-left-color: var(--accent); }
+  .rec.bath { border-left-color: var(--sauna); }
+  .rec.work { border-left-color: var(--work); }
+  .rec.event { border-left-color: var(--event); }
+  .rec.reminder { border-left-color: var(--reminder); }
+  .rec.done { opacity: .55; }
+  .rec.done .ttl { text-decoration: line-through; }
+  .day-total { text-align: right; font-weight: 700; margin: 4px 0 12px; color: var(--text-muted); }
+  .day-total b { color: var(--success); }
+
+  .empty { text-align: center; color: var(--text-muted); padding: 28px 12px; }
+  .empty .big { font-size: 34px; }
+
+  /* ============ Формы ============ */
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; }
+  .field input[type=text], .field input[type=tel], .field input[type=number],
+  .field input[type=date], .field input[type=time], .field textarea {
+    width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--text); -webkit-user-select: text; user-select: text;
+  }
+  .field textarea { min-height: 60px; resize: vertical; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .toggles { display: flex; gap: 8px; flex-wrap: wrap; }
+  .togchip { display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px;
+             border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2);
+             font-weight: 600; font-size: 14px; }
+  .togchip.on { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+  .switch-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
+  .switch { width: 48px; height: 28px; border-radius: 999px; background: var(--border); position: relative; transition: background .2s; flex: none; }
+  .switch.on { background: var(--accent); }
+  .switch::after { content:""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .2s; }
+  .switch.on::after { left: 23px; }
+  .warn { background: color-mix(in srgb, var(--warning) 22%, var(--surface)); border: 1px solid var(--warning);
+          color: var(--text); padding: 10px 12px; border-radius: 12px; font-size: 13px; margin-bottom: 12px; }
+  .form-actions { display: flex; gap: 10px; margin-top: 8px; }
+  .btn { flex: 1; padding: 14px; border-radius: 14px; font-weight: 700; font-size: 16px; text-align: center; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.primary:disabled { opacity: .45; }
+  .btn.ghost { background: var(--surface-2); }
+  .btn.del { background: transparent; color: var(--danger); flex: 0 0 auto; padding: 14px 16px; }
+
+  /* Выбор типа записи */
+  .typegrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .typebtn { display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: 16px;
+             background: var(--surface-2); font-weight: 700; font-size: 16px; }
+  .typebtn .e { font-size: 24px; }
+
+  /* Настройки */
+  .seg { display: flex; background: var(--surface-2); border-radius: 12px; padding: 4px; gap: 4px; }
+  .seg button { flex: 1; padding: 10px; border-radius: 9px; font-weight: 600; }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .set-group { margin-bottom: 18px; }
+  .set-group h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin: 0 0 8px; }
+  .set-row { display: flex; gap: 10px; }
+  .set-row .btn { font-size: 15px; padding: 13px; }
+  .hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+  /* Тост */
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--safe-b) + 170px);
+           z-index: 60; background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: 14px;
+           display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow); font-weight: 600;
+           opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: 92vw; }
+  .toast.show { opacity: 1; pointer-events: auto; }
+  .toast button { color: var(--accent); font-weight: 800; }
+
+  /* Онбординг */
+  #onboard { position: fixed; inset: 0; z-index: 70; background: var(--bg); display: none;
+             flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 32px; }
+  #onboard.show { display: flex; }
+  #onboard .big { font-size: 64px; margin-bottom: 16px; }
+  #onboard h1 { font-family: var(--font-display); font-size: 28px; margin: 0 0 12px; }
+  #onboard p { color: var(--text-muted); max-width: 320px; margin: 0 0 28px; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header class="topbar">
+    <button class="iconbtn sm" id="prevM" aria-label="Предыдущий месяц">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="month-title" id="monthTitle">—</div>
+    <button class="iconbtn sm" id="nextM" aria-label="Следующий месяц">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+    <button class="iconbtn sm" id="todayBtn" aria-label="Сегодня">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg>
+    </button>
+    <button class="iconbtn sm" id="settingsBtn" aria-label="Настройки">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <div class="weekdays" id="weekdays"></div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<button class="fab" id="fab" aria-label="Добавить">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+</button>
+
+<!-- Универсальная шторка -->
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet">
+  <div class="grab"></div>
+  <div class="sheet-head">
+    <h2 id="sheetTitle"></h2>
+    <button class="iconbtn sm" id="sheetClose" aria-label="Закрыть">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="sheet-body" id="sheetBody"></div>
+</div>
+
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="toastAction"></button></div>
+
+<div id="onboard">
+  <div class="big" style="color:var(--accent)"><svg width="68" height="68" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5l9-7 9 7"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/></svg></div>
+  <h1>Мой Календарь</h1>
+  <p>Ваш ежедневник по дням: брони домика, баня, дела и деньги — всё на одном экране.</p>
+  <button class="btn primary" id="onboardStart" style="max-width:240px">Начать</button>
+</div>
+
+<script>
+"use strict";
+/* ===================================================================
+   Мой Календарь — single-file PWA (vanilla JS, без внешних библиотек)
+   =================================================================== */
+
+const TYPES = {
+  booking:  { name: "Бронь",       cls: "b" },
+  bath:     { name: "Баня",        cls: "bath" },
+  work:     { name: "Работа",      cls: "work" },
+  event:    { name: "Событие",     cls: "event" },
+};
+const TYPE_COLOR = { booking: "var(--accent)", bath: "var(--sauna)", work: "var(--work)", event: "var(--event)" };
+/* Единый линейный набор иконок (без эмодзи) */
+const ICONS = {
+  booking: '<path d="M3 11.5l9-7 9 7"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/>',
+  bath: '<path d="M4 12.5h16v2.5a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z"/><path d="M7 19.5l-1 1.6M18 19.5l-1 1.6"/><path d="M8 12.5V6.4a2 2 0 0 1 4 0"/><path d="M14.6 3.6c.7.7.7 1.5 0 2.2M17.2 3.6c.7.7.7 1.5 0 2.2"/>',
+  work: '<rect x="3" y="7.5" width="18" height="12.5" rx="2.2"/><path d="M8.5 7.5V6a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v1.5"/><path d="M3 12.5h18"/>',
+  event: '<path d="M5 20.5h14V14a3 3 0 0 0-3-3H8a3 3 0 0 0-3 3z"/><path d="M4.5 15.5h15"/><path d="M8.5 8.5V5.6M12 8.5V4.6M15.5 8.5V5.6"/>',
+  bikes: '<circle cx="6.5" cy="16.5" r="3.2"/><circle cx="17.5" cy="16.5" r="3.2"/><path d="M6.5 16.5l3.7-7H15l2.5 7"/><path d="M9.5 9.5H15"/>',
+  sup: '<ellipse cx="12" cy="15.5" rx="8" ry="3"/><path d="M12 15.5V3.6"/><path d="M9 4.4h6"/>',
+  stats: '<path d="M4 20V12M10 20V5M16 20v-6M22 20H2"/>',
+};
+function ic(name, size, sw) { return `<svg class="ic" width="${size||20}" height="${size||20}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw||1.8}" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ""}</svg>`; }
+const MONTHS = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+const WD = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
+
+/* ---------- Состояние ---------- */
+let state = { version: 1, settings: { theme: "system", currency: "₽", notifications: false, lastBackupAt: null }, records: [], clients: [] };
+let view = { year: 0, month: 0 };          // отображаемый месяц
+let pendingDelete = null;                   // для undo
+
+/* ---------- IndexedDB ---------- */
+const DB_NAME = "myCalendar", STORE = "doc", KEY = "app";
+function openDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore(STORE); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function dbLoad() {
+  try {
+    const db = await openDB();
+    return await new Promise((res, rej) => {
+      const tx = db.transaction(STORE, "readonly").objectStore(STORE).get(KEY);
+      tx.onsuccess = () => res(tx.result || null);
+      tx.onerror = () => rej(tx.error);
+    });
+  } catch (e) {
+    try { return JSON.parse(localStorage.getItem("mc-data") || "null"); } catch (_) { return null; }
+  }
+}
+let saveTimer = null;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const db = await openDB();
+      db.transaction(STORE, "readwrite").objectStore(STORE).put(JSON.parse(JSON.stringify(state)), KEY);
+    } catch (e) {
+      try { localStorage.setItem("mc-data", JSON.stringify(state)); } catch (_) {}
+    }
+  }, 120);
+}
+async function requestPersist() {
+  try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
+}
+
+/* ---------- Даты (строки YYYY-MM-DD, без объекта Date в хранилище) ---------- */
+const pad = n => String(n).padStart(2, "0");
+function todayStr() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function ymd(y, m, d) { return `${y}-${pad(m+1)}-${pad(d)}`; }       // m: 0..11
+function parse(s) { const [y,m,d] = s.split("-").map(Number); return { y, m: m-1, d }; }
+function addDays(s, n) { const p = parse(s); const dt = new Date(p.y, p.m, p.d + n); return ymd(dt.getFullYear(), dt.getMonth(), dt.getDate()); }
+function cmp(a, b) { return a < b ? -1 : a > b ? 1 : 0; }
+function dowMon(s) { const p = parse(s); const w = new Date(p.y, p.m, p.d).getDay(); return (w + 6) % 7; } // 0=Пн
+function daysInMonth(y, m) { return new Date(y, m+1, 0).getDate(); }
+function nightsBetween(ci, co) { const a = parse(ci), b = parse(co); return Math.round((new Date(b.y,b.m,b.d) - new Date(a.y,a.m,a.d)) / 86400000); }
+
+function monthWeeks(y, m) {
+  const first = ymd(y, m, 1);
+  const start = addDays(first, -dowMon(first));     // понедельник первой недели
+  const weeks = [];
+  let cur = start;
+  for (let w = 0; w < 6; w++) {
+    const days = [];
+    for (let i = 0; i < 7; i++) { const p = parse(cur); days.push({ s: cur, inMonth: p.m === m, d: p.d }); cur = addDays(cur, 1); }
+    weeks.push(days);
+    if (parse(cur).m !== m && w >= 3 && weeks[w][6].s >= ymd(y, m, daysInMonth(y, m))) break;
+  }
+  return weeks;
+}
+
+/* ---------- Деньги ---------- */
+const money = n => (n || 0).toLocaleString("ru-RU") + " " + state.settings.currency;
+function compact(n) { if (!n) return ""; if (n >= 1000) { const k = n/1000; return (Number.isInteger(k)?k:k.toFixed(1)) + "к"; } return String(n); }
+
+/* ---------- Выборки и расчёты ---------- */
+function recsOnDay(s) {
+  return state.records.filter(r => {
+    if (r.type === "booking") return r.checkIn <= s && s <= r.checkOut;
+    return r.date === s;
+  });
+}
+function dayIncome(s) {
+  let sum = 0;
+  for (const r of state.records) {
+    if (r.type === "booking" && r.checkIn === s) sum += +r.price || 0;
+    else if (r.type === "bath" && r.date === s) sum += +r.price || 0;
+    else if (r.type === "work" && r.date === s) sum += +r.amount || 0;
+  }
+  return sum;
+}
+function rangeIncome(a, b) { let s = 0, cur = a; while (cur <= b) { s += dayIncome(cur); cur = addDays(cur, 1); } return s; }
+function monthStats(y, m) {
+  const dim = daysInMonth(y, m);
+  const first = ymd(y, m, 1), last = ymd(y, m, dim);
+  let income = 0, nights = 0, deposits = 0;
+  for (let d = 1; d <= dim; d++) income += dayIncome(ymd(y, m, d));
+  for (const r of state.records) {
+    if (r.type !== "booking") continue;
+    let cur = r.checkIn;
+    while (cur < r.checkOut) { if (cur >= first && cur <= last) nights++; cur = addDays(cur, 1); }
+    if (r.deposit && r.deposit.taken && r.checkIn >= first && r.checkIn <= last) deposits++;
+  }
+  return { income, nights, occ: Math.round(nights / dim * 100), deposits };
+}
+function overlappingBookings(ci, co, excludeId) {
+  return state.records.filter(r => r.type === "booking" && r.id !== excludeId && ci < r.checkOut && r.checkIn < co);
+}
+
+/* ---------- Рендер месяца ---------- */
+function render() {
+  document.getElementById("monthTitle").innerHTML = `${MONTHS[view.month]} <small>${view.year}</small>`;
+  const wd = document.getElementById("weekdays");
+  wd.innerHTML = WD.map((d,i) => `<span class="${i>=5?'we':''}">${d}</span>`).join("");
+
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+  const today = todayStr();
+  const weeks = monthWeeks(view.year, view.month);
+
+  for (const week of weeks) {
+    const wEl = document.createElement("div");
+    wEl.className = "week";
+    const rowStart = week[0].s, rowEnd = week[6].s;
+
+    // клетки
+    const row = document.createElement("div");
+    row.className = "week-row";
+    for (const day of week) {
+      const recs = recsOnDay(day.s);
+      const bath = recs.find(r => r.type === "bath");
+      const others = recs.filter(r => ["work","event"].includes(r.type));
+      const bookInc = recs.reduce((s, r) => s + (r.type === "booking" && r.checkIn === day.s ? (+r.price || 0) : 0), 0);
+      const workInc = recs.reduce((s, r) => s + (r.type === "work" ? (+r.amount || 0) : 0), 0);
+      const cell = document.createElement("button");
+      const we = dowMon(day.s) >= 5;
+      cell.className = "cell" + (day.inMonth ? "" : " out") + (day.s === today ? " today" : "");
+      cell.innerHTML = `
+        <span class="daynum num${we ? ' we' : ''}">${day.d}</span>
+        ${bookInc ? `<span class="book-price num">${compact(bookInc)}</span>` : ``}
+        ${bath ? `<span class="bath-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5h16v2.5a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z"/><path d="M8 12.5V6.5a2 2 0 0 1 4 0"/></svg><span class="num">${compact(bath.price)}</span></span>` : ``}
+        <div class="cell-foot">
+          <span class="dots">
+            ${others.slice(0,3).map(r => `<span class="fstrip ${r.type}"></span>`).join("")}
+            ${others.length>3 ? `<span class="more">+${others.length-3}</span>` : ``}
+          </span>
+          ${workInc ? `<span class="day-money num">${compact(workInc)}</span>` : ``}
+        </div>`;
+      cell.addEventListener("click", () => openDay(day.s));
+      row.appendChild(cell);
+    }
+    wEl.appendChild(row);
+
+    // брони — горизонтальные полосы с дорожками (без наложения)
+    const segs = state.records
+      .filter(r => r.type === "booking" && r.checkIn <= rowEnd && r.checkOut >= rowStart)
+      .map(b => {
+        const segStart = b.checkIn > rowStart ? b.checkIn : rowStart;
+        const segEnd = b.checkOut < rowEnd ? b.checkOut : rowEnd;
+        return { b, sc: dowMon(segStart), ec: dowMon(segEnd), trueStart: segStart === b.checkIn, trueEnd: segEnd === b.checkOut };
+      })
+      .sort((a, b) => a.sc - b.sc);
+    if (segs.length) {
+      const lanes = [];
+      for (const seg of segs) {
+        let li = lanes.findIndex(L => L[L.length - 1].ec < seg.sc);   // строго < → пересменок уходит на новую строку
+        if (li === -1) { li = lanes.length; lanes.push([]); }
+        lanes[li].push(seg); seg.lane = li;
+      }
+      const colW = 100 / 7, H = 20, G = 4, stackH = lanes.length * H + (lanes.length - 1) * G;
+      const bars = document.createElement("div");
+      bars.className = "bars";
+      for (const seg of segs) {
+        const bar = document.createElement("div");
+        bar.className = "bar" + (seg.trueStart ? "" : " sq-l") + (seg.trueEnd ? "" : " sq-r");
+        bar.style.left = `calc(${seg.sc * colW}% + 2px)`;
+        bar.style.width = `calc(${(seg.ec - seg.sc + 1) * colW}% - 4px)`;
+        bar.style.top = `calc(50% - ${stackH / 2}px + ${seg.lane * (H + G)}px)`;
+        bar.innerHTML = `${seg.trueStart ? '<span class="cap-in"></span>' : ''}<span class="nm">${esc(seg.b.guestName || "Бронь")}</span>${seg.trueEnd ? '<span class="cap-out"></span>' : ''}`;
+        bars.appendChild(bar);
+      }
+      wEl.appendChild(bars);
+    }
+    grid.appendChild(wEl);
+  }
+
+  renderSummary();
+}
+
+function renderSummary() {
+  const st = monthStats(view.year, view.month);
+  const dim = daysInMonth(view.year, view.month);
+  document.getElementById("summary").innerHTML = `
+    <div class="bento income" id="statsEntry"><div class="lbl">Доход за месяц ${ic('stats',12)}</div><div class="val num">${money(st.income)}</div></div>
+    <div class="bento"><div class="lbl">Занято</div><div class="val num">${st.nights} / ${dim}</div></div>
+    <div class="bento"><div class="lbl">Загрузка</div><div class="val num">${st.occ}%</div></div>`;
+  document.getElementById("statsEntry").onclick = openStats;
+}
+
+/* ---------- Финансовая статистика ---------- */
+function statsFor(from, to) {
+  let bookingInc = 0, bathInc = 0, workInc = 0, nights = 0, bookings = 0, depCount = 0, depSum = 0;
+  for (const r of state.records) {
+    if (r.type === "booking") {
+      if (r.checkIn >= from && r.checkIn <= to) {
+        bookingInc += +r.price || 0; bookings++;
+        if (r.deposit && r.deposit.taken) { depCount++; depSum += +r.deposit.amount || 0; }
+      }
+      let cur = r.checkIn;
+      while (cur < r.checkOut) { if (cur >= from && cur <= to) nights++; cur = addDays(cur, 1); }
+    } else if (r.type === "bath" && r.date >= from && r.date <= to) {
+      bathInc += +r.price || 0;
+      if (r.deposit && r.deposit.taken) { depCount++; depSum += +r.deposit.amount || 0; }
+    } else if (r.type === "work" && r.date >= from && r.date <= to) {
+      workInc += +r.amount || 0;
+    }
+  }
+  const days = nightsBetween(from, to) + 1;
+  return { income: bookingInc + bathInc + workInc, bookingInc, bathInc, workInc, nights, bookings, occ: Math.round(nights / days * 100), depCount, depSum, days };
+}
+function statsHTML(from, to, mode) {
+  if (!from || !to || from > to) return `<div class="empty">Укажите период (с ≤ по)</div>`;
+  const s = statsFor(from, to);
+  const max = Math.max(s.bookingInc, s.bathInc, s.workInc, 1);
+  const bar = (val, col) => `<div class="statbar"><div style="width:${Math.round(val / max * 100)}%;background:${col}"></div></div>`;
+  const p = parse(from), q = parse(to);
+  const label = `${p.d} ${MONTHS[p.m].slice(0,3).toLowerCase()} — ${q.d} ${MONTHS[q.m].slice(0,3).toLowerCase()} · ${s.days} дн.`;
+  return `
+    <div class="stat-total"><div class="lbl">Доход за период</div><div class="big num">${money(s.income)}</div>${mode === "month" ? "" : `<div class="hint">${label}</div>`}</div>
+    <div class="stat-line"><span>${ic('booking',16)} Брони</span><b class="num">${money(s.bookingInc)}</b></div>${bar(s.bookingInc,'var(--accent)')}
+    ${s.bathInc ? `<div class="stat-line"><span>${ic('bath',16)} Только баня</span><b class="num">${money(s.bathInc)}</b></div>${bar(s.bathInc,'var(--sauna)')}` : ``}
+    <div class="stat-line"><span>${ic('work',16)} Работа</span><b class="num">${money(s.workInc)}</b></div>${bar(s.workInc,'var(--work)')}
+    <div class="stat-grid">
+      <div class="bento"><div class="lbl">Броней</div><div class="val num">${s.bookings}</div></div>
+      <div class="bento"><div class="lbl">Ночей</div><div class="val num">${s.nights}</div></div>
+      <div class="bento"><div class="lbl">Загрузка</div><div class="val num">${s.occ}%</div></div>
+    </div>
+    ${s.depCount ? `<div class="stat-line"><span>Депозиты</span><b class="num">${s.depCount} шт · ${money(s.depSum)}</b></div>` : ``}`;
+}
+function openStats() {
+  let mode = "month", pFrom = "", pTo = "";
+  openSheet(`${ic('stats',20)} Статистика`, `
+    <div class="seg" id="statMode">
+      <button data-m="month" class="on">Месяц</button>
+      <button data-m="week">Неделя</button>
+      <button data-m="period">Период</button>
+    </div>
+    <div id="statPeriod" style="margin:12px 0 0; display:none">
+      <div class="row2">
+        <div class="field"><label>С</label><input type="date" id="statFrom"></div>
+        <div class="field"><label>По</label><input type="date" id="statTo"></div>
+      </div>
+    </div>
+    <div id="statBody" style="margin-top:12px"></div>`);
+  function recompute() {
+    if (mode === "month") { pFrom = ymd(view.year, view.month, 1); pTo = ymd(view.year, view.month, daysInMonth(view.year, view.month)); }
+    else if (mode === "week") { const t = todayStr(); pFrom = addDays(t, -dowMon(t)); pTo = addDays(pFrom, 6); }
+    else { pFrom = document.getElementById("statFrom").value; pTo = document.getElementById("statTo").value; }
+    document.getElementById("statBody").innerHTML = statsHTML(pFrom, pTo, mode);
+  }
+  document.querySelectorAll("#statMode button").forEach(b => b.onclick = () => {
+    mode = b.dataset.m;
+    document.querySelectorAll("#statMode button").forEach(x => x.classList.toggle("on", x === b));
+    const per = document.getElementById("statPeriod");
+    per.style.display = mode === "period" ? "" : "none";
+    if (mode === "period") {
+      if (!document.getElementById("statFrom").value) document.getElementById("statFrom").value = ymd(view.year, view.month, 1);
+      if (!document.getElementById("statTo").value) document.getElementById("statTo").value = ymd(view.year, view.month, daysInMonth(view.year, view.month));
+    }
+    recompute();
+  });
+  document.getElementById("statFrom").onchange = recompute;
+  document.getElementById("statTo").onchange = recompute;
+  recompute();
+}
+
+/* ---------- Шторка ---------- */
+function openSheet(title, html) {
+  document.getElementById("sheetTitle").innerHTML = title;
+  document.getElementById("sheetBody").innerHTML = html;
+  document.getElementById("scrim").classList.add("open");
+  document.getElementById("sheet").classList.add("open");
+}
+function closeSheet() {
+  document.getElementById("scrim").classList.remove("open");
+  document.getElementById("sheet").classList.remove("open");
+}
+
+/* ---------- Деталь дня ---------- */
+let currentDay = null;
+function openDay(s) {
+  currentDay = s;
+  const p = parse(s);
+  const title = `${p.d} ${MONTHS[p.m].toLowerCase()} <small>${WD[dowMon(s)]}</small>`;
+  openSheet(title, dayHTML(s));
+  bindDayActions(s);
+}
+function recSortTime(r, s) {
+  if (r.type === "booking") return r.checkIn === s ? (r.checkInTime||"00:01") : r.checkOut === s ? (r.checkOutTime||"00:01") : "";
+  if (r.type === "bath") return r.fromTime || "";
+  return r.time || "";
+}
+function dayHTML(s) {
+  const recs = recsOnDay(s).sort((a,b) => cmp(recSortTime(a,s)||"", recSortTime(b,s)||""));
+  const inc = dayIncome(s);
+  let list = "";
+  if (!recs.length) {
+    list = `<div class="empty"><div class="big"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 3v4M16 3v4"/></svg></div>На этот день пока ничего нет</div>`;
+  } else {
+    list = recs.map(r => recCard(r, s)).join("");
+  }
+  return `
+    ${inc ? `<div class="day-total num">за день: <b>${money(inc)}</b></div>` : ``}
+    ${list}
+    <div class="form-actions"><button class="btn primary" id="addToDay">+ Добавить запись</button></div>`;
+}
+function recCard(r, s) {
+  const t = TYPES[r.type];
+  let title = "", meta = "", amount = "", chips = "", time = "";
+  if (r.type === "booking") {
+    title = r.guestName || "Бронь";
+    const phase = r.checkIn === s ? `Заезд ${r.checkInTime||""}` : r.checkOut === s ? `Выезд ${r.checkOutTime||""}` : "Проживание";
+    time = phase.trim();
+    meta = `${r.phone?r.phone+" · ":""}${nightsBetween(r.checkIn,r.checkOut)} ноч.`;
+    if (r.checkIn === s) amount = money(r.price);
+    const ex = []; if (r.extras?.sauna) ex.push(`${ic('bath',13)} баня`); if (r.extras?.bikes) ex.push(`${ic('bikes',13)} велики`); if (r.extras?.sup) ex.push(`${ic('sup',13)} сапы`);
+    if (r.deposit?.taken) ex.push("депозит" + (r.deposit.amount ? " " + money(r.deposit.amount) : ""));
+    chips = ex.map(e => `<span class="chip on">${e}</span>`).join("");
+  } else if (r.type === "bath") {
+    title = r.guestName || "Баня";
+    time = `${r.fromTime||""}–${r.toTime||""}`;
+    meta = r.phone || "";
+    amount = money(r.price);
+    const ex = []; if (r.extras?.bikes) ex.push(`${ic('bikes',13)} велики`); if (r.extras?.sup) ex.push(`${ic('sup',13)} сапы`);
+    if (r.deposit?.taken) ex.push("депозит" + (r.deposit.amount ? " " + money(r.deposit.amount) : ""));
+    chips = ex.map(e => `<span class="chip on">${e}</span>`).join("");
+  } else if (r.type === "work") {
+    title = r.title; time = r.time || ""; meta = [r.contactName, r.phone].filter(Boolean).join(" · ");
+    amount = money(r.amount);
+  } else if (r.type === "event") {
+    title = r.title; time = r.time || ""; meta = [r.contactName, r.phone].filter(Boolean).join(" · ");
+  }
+  return `
+    <div class="rec ${t.cls} ${r.done?'done':''}" data-id="${r.id}">
+      <div class="recico">${ic(r.type, 22)}</div>
+      <div class="body">
+        <div class="ttl">${esc(title)} ${time?`<span class="time num">${time}</span>`:""} ${amount?`<span class="amount num">${amount}</span>`:""}</div>
+        ${meta?`<div class="meta">${esc(meta)}</div>`:""}
+        ${r.comment?`<div class="meta">${esc(r.comment)}</div>`:""}
+        ${chips?`<div class="chips">${chips}</div>`:""}
+      </div>
+      <div class="acts">
+        <button data-act="edit" aria-label="Изменить"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>
+        <button data-act="del" aria-label="Удалить"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
+      </div>
+    </div>`;
+}
+function bindDayActions(s) {
+  document.getElementById("addToDay").onclick = () => openTypePicker(s);
+  document.querySelectorAll("#sheetBody .rec").forEach(card => {
+    const id = card.dataset.id;
+    card.querySelectorAll("[data-act]").forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const act = btn.dataset.act;
+        if (act === "edit") openForm(findRec(id).type, s, id);
+        else if (act === "del") confirmDelete(id, s);
+      };
+    });
+  });
+}
+const findRec = id => state.records.find(r => r.id === id);
+
+/* ---------- Удаление с подтверждением (undo) ---------- */
+function confirmDelete(id, s) {
+  const r = findRec(id);
+  pendingDelete = { rec: r, day: s };
+  state.records = state.records.filter(x => x.id !== id);
+  save(); openDay(s); render();
+  showToast("Удалено", "Отменить", () => {
+    state.records.push(pendingDelete.rec); pendingDelete = null;
+    save(); if (currentDay) openDay(currentDay); render();
+  });
+}
+let toastTimer = null;
+function showToast(msg, actionLabel, action) {
+  const t = document.getElementById("toast");
+  document.getElementById("toastMsg").textContent = msg;
+  const ab = document.getElementById("toastAction");
+  if (actionLabel) { ab.textContent = actionLabel; ab.style.display = ""; ab.onclick = () => { action && action(); hideToast(); }; }
+  else ab.style.display = "none";
+  t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 4000);
+}
+function hideToast() { document.getElementById("toast").classList.remove("show"); }
+
+/* ---------- Выбор типа записи ---------- */
+function openTypePicker(s) {
+  const html = `<div class="typegrid">` + Object.entries(TYPES).map(([k,t]) =>
+    `<button class="typebtn" data-type="${k}"><span class="e" style="color:${TYPE_COLOR[k]}">${ic(k,24)}</span>${t.name}</button>`).join("") + `</div>`;
+  openSheet("Добавить запись", html);
+  document.querySelectorAll(".typebtn").forEach(b => b.onclick = () => openForm(b.dataset.type, s));
+}
+
+/* ---------- Формы ---------- */
+function clientsDatalist() {
+  return `<datalist id="clientsList">` + state.clients.map(c => `<option value="${esc(c.name)}">`).join("") + `</datalist>`;
+}
+function openForm(type, day, editId) {
+  const r = editId ? findRec(editId) : null;
+  const v = (k, d="") => r && r[k] != null ? r[k] : d;
+  const today = day || todayStr();
+  let body = "";
+
+  if (type === "booking") {
+    const ex = r?.extras || {}; const dep = r?.deposit || {};
+    body = `
+      ${clientsDatalist()}
+      <div class="field"><label>Имя гостя *</label><input type="text" id="f-guest" list="clientsList" value="${esc(v("guestName"))}" autocomplete="off"></div>
+      <div class="field"><label>Телефон</label><input type="tel" id="f-phone" value="${esc(v("phone"))}"></div>
+      <div class="row2">
+        <div class="field"><label>Заезд *</label><input type="date" id="f-ci" value="${v("checkIn", today)}"></div>
+        <div class="field"><label>Время заезда</label><input type="time" id="f-cit" value="${v("checkInTime","14:00")}"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Выезд *</label><input type="date" id="f-co" value="${v("checkOut", addDays(today,1))}"></div>
+        <div class="field"><label>Время выезда</label><input type="time" id="f-cot" value="${v("checkOutTime","12:00")}"></div>
+      </div>
+      <div class="warn" id="overlapWarn" style="display:none"></div>
+      <div class="field"><label>Стоимость, ₽ *</label><input type="number" id="f-price" inputmode="numeric" value="${v("price","")}"></div>
+      <div class="field"><label>Что входит</label><div class="toggles">
+        <button type="button" class="togchip ${ex.sauna?'on':''}" data-ex="sauna">${ic('bath',16)} баня</button>
+        <button type="button" class="togchip ${ex.bikes?'on':''}" data-ex="bikes">${ic('bikes',16)} велики</button>
+        <button type="button" class="togchip ${ex.sup?'on':''}" data-ex="sup">${ic('sup',16)} сапы</button>
+      </div></div>
+      <div class="field">${depositHTML(dep)}</div>
+      <div class="field"><label>Комментарий</label><textarea id="f-comment">${esc(v("comment"))}</textarea></div>`;
+  } else if (type === "bath") {
+    const ex = r?.extras || {}; const dep = r?.deposit || {};
+    body = `
+      ${clientsDatalist()}
+      <div class="field"><label>Имя гостя</label><input type="text" id="f-guest" list="clientsList" value="${esc(v("guestName"))}" autocomplete="off"></div>
+      <div class="field"><label>Телефон</label><input type="tel" id="f-phone" value="${esc(v("phone"))}"></div>
+      <div class="field"><label>Дата *</label><input type="date" id="f-date" value="${v("date", today)}"></div>
+      <div class="row2">
+        <div class="field"><label>С * </label><input type="time" id="f-from" value="${v("fromTime","16:00")}"></div>
+        <div class="field"><label>По *</label><input type="time" id="f-to" value="${v("toTime","19:00")}"></div>
+      </div>
+      <div class="field"><label>Стоимость, ₽ *</label><input type="number" id="f-price" inputmode="numeric" value="${v("price","")}"></div>
+      <div class="field"><label>Что входит</label><div class="toggles">
+        <button type="button" class="togchip ${ex.bikes?'on':''}" data-ex="bikes">${ic('bikes',16)} велики</button>
+        <button type="button" class="togchip ${ex.sup?'on':''}" data-ex="sup">${ic('sup',16)} сапы</button>
+      </div></div>
+      <div class="field">${depositHTML(dep)}</div>
+      <div class="field"><label>Комментарий</label><textarea id="f-comment">${esc(v("comment"))}</textarea></div>`;
+  } else if (type === "work") {
+    body = `
+      ${clientsDatalist()}
+      <div class="field"><label>Название *</label><input type="text" id="f-title" value="${esc(v("title"))}"></div>
+      <div class="row2">
+        <div class="field"><label>Дата *</label><input type="date" id="f-date" value="${v("date", today)}"></div>
+        <div class="field"><label>Время</label><input type="time" id="f-time" value="${v("time")}"></div>
+      </div>
+      <div class="field"><label>Контакт</label><input type="text" id="f-contact" list="clientsList" value="${esc(v("contactName"))}" autocomplete="off"></div>
+      <div class="field"><label>Телефон</label><input type="tel" id="f-phone" value="${esc(v("phone"))}"></div>
+      <div class="field"><label>Сумма, ₽ *</label><input type="number" id="f-amount" inputmode="numeric" value="${v("amount","")}"></div>
+      <div class="switch-row"><span>Напомнить</span><div class="switch ${v("notify")?'on':''}" id="sw-notify"></div></div>
+      <div class="field"><label>Комментарий</label><textarea id="f-comment">${esc(v("comment"))}</textarea></div>`;
+  } else if (type === "event") {
+    body = `
+      ${clientsDatalist()}
+      <div class="field"><label>Название *</label><input type="text" id="f-title" value="${esc(v("title"))}"></div>
+      <div class="row2">
+        <div class="field"><label>Дата *</label><input type="date" id="f-date" value="${v("date", today)}"></div>
+        <div class="field"><label>Время <span style="font-weight:400">(пусто = весь день)</span></label><input type="time" id="f-time" value="${v("time")}"></div>
+      </div>
+      <div class="field"><label>Контакт</label><input type="text" id="f-contact" list="clientsList" value="${esc(v("contactName"))}" autocomplete="off"></div>
+      <div class="field"><label>Телефон</label><input type="tel" id="f-phone" value="${esc(v("phone"))}"></div>
+      <div class="switch-row"><span>Напомнить</span><div class="switch ${v("notify")?'on':''}" id="sw-notify"></div></div>
+      <div class="field"><label>Комментарий</label><textarea id="f-comment">${esc(v("comment"))}</textarea></div>`;
+  }
+
+  body += `<div class="form-actions">
+      ${editId?`<button class="btn del" id="f-del">Удалить</button>`:""}
+      <button class="btn ghost" id="f-cancel">Отмена</button>
+      <button class="btn primary" id="f-save">Сохранить</button>
+    </div>`;
+
+  openSheet(`<span class="titico" style="color:${TYPE_COLOR[type]}">${ic(type,20)}</span> ${editId?"Изменить · ":""}${TYPES[type].name}`, body);
+  bindForm(type, day, editId);
+}
+
+function depositHTML(dep) {
+  return `<label>Депозит</label>
+    <div class="switch-row"><span>Взят депозит</span><div class="switch ${dep.taken?'on':''}" id="sw-dep"></div></div>
+    <input type="number" id="f-dep-amount" inputmode="numeric" placeholder="Сумма, ₽" value="${dep.amount||''}" style="${dep.taken?'':'display:none'}">`;
+}
+
+function bindForm(type, day, editId) {
+  // тумблеры «что входит»
+  const extras = {};
+  document.querySelectorAll("[data-ex]").forEach(b => { extras[b.dataset.ex] = b.classList.contains("on"); b.onclick = () => { b.classList.toggle("on"); extras[b.dataset.ex] = b.classList.contains("on"); }; });
+  // депозит
+  let depTaken = false;
+  const swDep = document.getElementById("sw-dep");
+  if (swDep) { depTaken = swDep.classList.contains("on"); swDep.onclick = () => { swDep.classList.toggle("on"); depTaken = swDep.classList.contains("on"); document.getElementById("f-dep-amount").style.display = depTaken ? "" : "none"; }; }
+  // notify
+  let notify = false;
+  const swN = document.getElementById("sw-notify");
+  if (swN) { notify = swN.classList.contains("on"); swN.onclick = () => { swN.classList.toggle("on"); notify = swN.classList.contains("on"); }; }
+
+  // автоподстановка телефона по клиенту
+  const nameInput = document.getElementById("f-guest") || document.getElementById("f-contact");
+  if (nameInput) nameInput.addEventListener("change", () => {
+    const c = state.clients.find(c => c.name === nameInput.value);
+    const ph = document.getElementById("f-phone");
+    if (c && ph && !ph.value) ph.value = c.phone || "";
+  });
+
+  // предупреждение о пересечении (бронь)
+  function checkOverlap() {
+    if (type !== "booking") return;
+    const ci = document.getElementById("f-ci").value, co = document.getElementById("f-co").value;
+    const w = document.getElementById("overlapWarn");
+    if (ci && co && co > ci) {
+      const ov = overlappingBookings(ci, co, editId);
+      if (ov.length) { w.style.display = ""; w.textContent = "⚠ На эти дни уже есть бронь: " + ov.map(b => b.guestName||"без имени").join(", "); return; }
+    }
+    w.style.display = "none";
+  }
+  if (type === "booking") ["f-ci","f-co"].forEach(id => document.getElementById(id).addEventListener("change", checkOverlap)), checkOverlap();
+
+  document.getElementById("f-cancel").onclick = () => day ? openDay(day) : closeSheet();
+  if (editId) document.getElementById("f-del").onclick = () => { confirmDelete(editId, day || (findRec(editId).date)); };
+  document.getElementById("f-save").onclick = () => saveForm(type, day, editId, extras, depTaken, notify);
+}
+
+function val(id) { const el = document.getElementById(id); return el ? el.value.trim() : ""; }
+function numVal(id) { const v = val(id); return v === "" ? 0 : +v; }
+
+function saveForm(type, day, editId, extras, depTaken, notify) {
+  let rec = editId ? findRec(editId) : { id: uid(), type, createdAt: new Date().toISOString() };
+  rec.updatedAt = new Date().toISOString();
+  const dep = { taken: depTaken, amount: depTaken ? numVal("f-dep-amount") : 0 };
+
+  if (type === "booking") {
+    const guest = val("f-guest"), ci = val("f-ci"), co = val("f-co"), price = numVal("f-price");
+    if (!guest || !ci || !co || !(co > ci) || !price) return flash("Заполните имя, даты (выезд позже заезда) и стоимость");
+    Object.assign(rec, { guestName: guest, phone: val("f-phone"), checkIn: ci, checkInTime: val("f-cit"), checkOut: co, checkOutTime: val("f-cot"), price, extras, deposit: dep, comment: val("f-comment") });
+    rememberClient(guest, rec.phone);
+  } else if (type === "bath") {
+    const date = val("f-date"), from = val("f-from"), to = val("f-to"), price = numVal("f-price");
+    if (!date || !from || !to || !price) return flash("Дата, время с–по и стоимость обязательны");
+    Object.assign(rec, { guestName: val("f-guest"), phone: val("f-phone"), date, fromTime: from, toTime: to, price, extras, deposit: dep, comment: val("f-comment") });
+    rememberClient(rec.guestName, rec.phone);
+  } else if (type === "work") {
+    const title = val("f-title"), date = val("f-date"), amount = numVal("f-amount");
+    if (!title || !date || !amount) return flash("Название, дата и сумма обязательны");
+    Object.assign(rec, { title, date, time: val("f-time"), contactName: val("f-contact"), phone: val("f-phone"), amount, notify, comment: val("f-comment") });
+    rememberClient(rec.contactName, rec.phone);
+    if (notify) ensureNotifyPermission();
+  } else if (type === "event") {
+    const title = val("f-title"), date = val("f-date");
+    if (!title || !date) return flash("Название и дата обязательны");
+    Object.assign(rec, { title, date, time: val("f-time"), contactName: val("f-contact"), phone: val("f-phone"), notify, comment: val("f-comment") });
+    rememberClient(rec.contactName, rec.phone);
+    if (notify) ensureNotifyPermission();
+  }
+
+  if (!editId) state.records.push(rec);
+  save();
+  const back = day || rec.date || rec.checkIn;
+  openDay(back); render();
+}
+
+function rememberClient(name, phone) {
+  if (!name) return;
+  let c = state.clients.find(c => c.name === name);
+  if (c) { if (phone) c.phone = phone; c.lastUsedAt = new Date().toISOString(); }
+  else state.clients.push({ name, phone: phone||"", lastUsedAt: new Date().toISOString() });
+}
+function flash(msg) { showToast(msg, "", null); }
+function uid() { return (crypto.randomUUID ? crypto.randomUUID() : "id" + Date.now() + Math.random().toString(16).slice(2)); }
+function esc(s) { return String(s==null?"":s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ---------- Настройки ---------- */
+function openSettings() {
+  const s = state.settings;
+  const last = s.lastBackupAt ? new Date(s.lastBackupAt).toLocaleDateString("ru-RU") : "ещё не делали";
+  openSheet("Настройки", `
+    <div class="set-group">
+      <h3>Тема</h3>
+      <div class="seg" id="themeSeg">
+        <button data-t="light" class="${s.theme==='light'?'on':''}">Светлая</button>
+        <button data-t="dark" class="${s.theme==='dark'?'on':''}">Тёмная</button>
+        <button data-t="system" class="${s.theme==='system'?'on':''}">Система</button>
+      </div>
+    </div>
+    <div class="set-group">
+      <h3>Уведомления напоминаний</h3>
+      <div class="switch-row"><span>Пробовать уведомлять</span><div class="switch ${s.notifications?'on':''}" id="sw-notif"></div></div>
+      <div class="hint">Веб-уведомления работают «как получится» (особенно на iPhone). В приложении напоминания видны всегда.</div>
+    </div>
+    <div class="set-group">
+      <h3>Данные</h3>
+      <div class="set-row"><button class="btn ghost" id="exportJson">Выгрузить JSON</button><button class="btn ghost" id="importJson">Загрузить</button></div>
+      <div class="set-row" style="margin-top:10px"><button class="btn ghost" id="exportCsv">Экспорт CSV</button></div>
+      <div class="hint">Последний бэкап: ${last}. Делайте выгрузку периодически — это копия всех данных.</div>
+      <input type="file" id="importFile" accept="application/json" style="display:none">
+    </div>
+    <div class="set-group" id="installGroup" style="display:none">
+      <h3>Приложение</h3>
+      <button class="btn primary" id="installBtn">Установить на телефон</button>
+      <div class="hint">У установленного приложения данные сохраняются надёжнее.</div>
+    </div>
+    <div class="hint" style="text-align:center">Мой Календарь · v1.0 · все данные на устройстве</div>
+  `);
+  document.querySelectorAll("#themeSeg button").forEach(b => b.onclick = () => { setTheme(b.dataset.t); openSettings(); });
+  const swN = document.getElementById("sw-notif");
+  swN.onclick = () => { state.settings.notifications = !state.settings.notifications; if (state.settings.notifications) ensureNotifyPermission(); swN.classList.toggle("on"); save(); };
+  document.getElementById("exportJson").onclick = exportJson;
+  document.getElementById("exportCsv").onclick = exportCsv;
+  document.getElementById("importJson").onclick = () => document.getElementById("importFile").click();
+  document.getElementById("importFile").onchange = importJson;
+  if (deferredPrompt) { document.getElementById("installGroup").style.display = ""; document.getElementById("installBtn").onclick = doInstall; }
+}
+
+function setTheme(t) {
+  state.settings.theme = t; save();
+  document.documentElement.setAttribute("data-theme", t);
+  try { localStorage.setItem("mc-theme", t); } catch (e) {}
+  // обновить theme-color
+  const dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.querySelector('meta[name=theme-color]').setAttribute("content", dark ? "#0F1216" : "#F7F8FA");
+}
+
+/* ---------- Экспорт / импорт ---------- */
+function download(name, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function exportJson() {
+  state.settings.lastBackupAt = new Date().toISOString(); save();
+  download(`moy-calendar-${todayStr()}.json`, JSON.stringify(state, null, 2), "application/json");
+  showToast("Данные выгружены", "", null);
+}
+function exportCsv() {
+  const head = ["Тип","Дата","Дата2","Время","Название/Гость","Телефон","Сумма","Комментарий"];
+  const rows = state.records.map(r => {
+    const type = TYPES[r.type].name;
+    if (r.type === "booking") return [type, r.checkIn, r.checkOut, (r.checkInTime||""), r.guestName, r.phone, r.price, r.comment];
+    if (r.type === "bath") return [type, r.date, "", `${r.fromTime||""}-${r.toTime||""}`, r.guestName, r.phone, r.price, r.comment];
+    return [type, r.date, "", r.time||"", r.title, r.phone||r.contactName||"", r.amount||"", r.comment];
+  });
+  const csv = [head, ...rows].map(row => row.map(c => `"${String(c==null?"":c).replace(/"/g,'""')}"`).join(";")).join("\r\n");
+  download(`moy-calendar-${todayStr()}.csv`, "﻿" + csv, "text/csv");
+}
+function importJson(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!data || !Array.isArray(data.records)) throw 0;
+      try { localStorage.setItem("mc-backup", JSON.stringify(state)); } catch (_) {}
+      state = Object.assign({ version:1, settings:{theme:"system",currency:"₽",notifications:false,lastBackupAt:null}, records:[], clients:[] }, data);
+      if (!state.clients) state.clients = [];
+      save(); setTheme(state.settings.theme||"system"); render(); closeSheet();
+      showToast("Данные загружены", "", null);
+    } catch (_) { showToast("Не удалось прочитать файл", "", null); }
+  };
+  reader.readAsText(file);
+}
+
+/* ---------- Установка PWA ---------- */
+let deferredPrompt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredPrompt = e; });
+async function doInstall() { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; closeSheet(); }
+
+/* ---------- Уведомления (best-effort) ---------- */
+async function ensureNotifyPermission() { try { if ("Notification" in window && Notification.permission === "default") await Notification.requestPermission(); } catch (e) {} }
+function scheduleTodayReminders() {
+  if (!state.settings.notifications || !("Notification" in window) || Notification.permission !== "granted") return;
+  const today = todayStr(), now = new Date();
+  for (const r of state.records) {
+    if (!["work","event"].includes(r.type) || !r.notify || r.date !== today || !r.time) continue;
+    const [h, m] = r.time.split(":").map(Number);
+    const when = new Date(); when.setHours(h, m, 0, 0);
+    const delay = when - now;
+    if (delay > 0 && delay < 86400000) setTimeout(() => { try { new Notification("Напоминание: " + r.title); } catch (e) {} }, delay);
+  }
+}
+
+/* ---------- Навигация ---------- */
+function shiftMonth(n) {
+  let m = view.month + n, y = view.year;
+  if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; }
+  view = { year: y, month: m }; render();
+}
+function goToday() { const d = new Date(); view = { year: d.getFullYear(), month: d.getMonth() }; render(); }
+
+/* ---------- Свайп по месяцам ---------- */
+function initSwipe() {
+  const grid = document.getElementById("grid"); let x0 = null, y0 = null;
+  grid.addEventListener("touchstart", e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  grid.addEventListener("touchend", e => {
+    if (x0 == null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) shiftMonth(dx < 0 ? 1 : -1);
+    x0 = y0 = null;
+  }, { passive: true });
+}
+
+/* ---------- Старт ---------- */
+async function init() {
+  const loaded = await dbLoad();
+  if (loaded && Array.isArray(loaded.records)) {
+    state = loaded; if (!state.clients) state.clients = []; if (!state.settings) state.settings = {theme:"system",currency:"₽",notifications:false,lastBackupAt:null};
+    // миграция: отдельные напоминания больше не используются
+    const before = state.records.length;
+    state.records = state.records.filter(r => r.type !== "reminder");
+    if (state.records.length !== before) save();
+  }
+  else { document.getElementById("onboard").classList.add("show"); }
+
+  setTheme(state.settings.theme || "system");
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (state.settings.theme === "system") setTheme("system"); });
+
+  goToday();
+  initSwipe();
+  scheduleTodayReminders();
+
+  document.getElementById("prevM").onclick = () => shiftMonth(-1);
+  document.getElementById("nextM").onclick = () => shiftMonth(1);
+  document.getElementById("todayBtn").onclick = goToday;
+  document.getElementById("settingsBtn").onclick = openSettings;
+  document.getElementById("fab").onclick = () => openTypePicker(todayStr());
+  document.getElementById("scrim").onclick = closeSheet;
+  document.getElementById("sheetClose").onclick = closeSheet;
+  document.getElementById("onboardStart").onclick = () => { document.getElementById("onboard").classList.remove("show"); requestPersist(); };
+}
+init();
+</script>
+</body>
+</html>
