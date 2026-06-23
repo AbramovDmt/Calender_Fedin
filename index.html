@@ -178,6 +178,8 @@
     display: flex; align-items: center; }
   .work-strip .ln { flex: 1; height: 4px; border-radius: 2px; background: var(--work-green); margin-right: 5px; }
   .work-strip .amt { color: var(--work-green); font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .work-strip.tight .ln { height: 3px; margin-right: 3px; }
+  .work-strip.tight .amt { font-size: 9px; }
 
   /* ============ Итог месяца (bento) ============ */
   .summary {
@@ -556,7 +558,14 @@ function render() {
         ${others.length ? `<span class="event-ind"></span>` : ``}
         ${(bookInc||bathInc) ? `<span class="book-price num">${compact(bookInc||bathInc)}</span>` : ``}
         ${workRecs.length ? `<div class="work-stack">
-          ${workRecs.map((r,i) => `<span class="work-strip" style="bottom:${i*13}px"><span class="ln"></span><span class="amt num">${compact(+r.amount||0)}</span></span>`).join("")}
+          ${(() => {
+            const n = workRecs.length;
+            // больше 3 — ужимаем шаг и высоту строки адаптивно под количество; 3 и меньше — текущий алгоритм без изменений
+            const step = n > 3 ? Math.max(8, Math.round(39 / n)) : 13;
+            const rowH = Math.min(12, step - 1);
+            const tight = n > 3 ? " tight" : "";
+            return workRecs.map((r,i) => `<span class="work-strip${tight}" style="bottom:${i*step}px;height:${rowH}px"><span class="ln"></span><span class="amt num">${compact(+r.amount||0)}</span></span>`).join("");
+          })()}
         </div>` : ``}`;
       cell.addEventListener("click", () => openDay(day.s));
       row.appendChild(cell);
