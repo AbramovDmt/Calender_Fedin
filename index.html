@@ -358,8 +358,6 @@
      высоты у флекс-айтема) и схлопывалась вместо скролла страницы, а touch-action:none
      на .grid блокировал вертикальный скролл пальцем. */
   @media (orientation: landscape) {
-    #app { max-width: 900px; }
-    .summary { max-width: 900px; }
     .grid { overflow: visible; flex-shrink: 0; touch-action: pan-y; }
   }
 </style>
