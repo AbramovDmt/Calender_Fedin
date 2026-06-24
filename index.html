@@ -136,11 +136,6 @@
           flex: 1; display: flex; flex-direction: column; }
   .week { position: relative; flex: 1; display: flex; flex-direction: column; }
   .week-row { display: grid; grid-template-columns: repeat(7,1fr); flex: 1; }
-  /* Горизонтальная ориентация: высота экрана резко меньше — не сжимаем сетку под неё (flex:1 + overflow:hidden
-     у .grid иначе обрезают лишний контент вместо скролла страницы). Портретный режим не трогаем. */
-  @media (orientation: landscape) {
-    .grid, .week, .week-row { flex: none; }
-  }
   .cell {
     position: relative; min-height: 68px;
     border-top: 1px solid var(--border); border-left: 1px solid var(--border);
@@ -551,11 +546,15 @@ function render() {
   grid.innerHTML = "";
   const today = todayStr();
   const weeks = monthWeeks(view.year, view.month);
+  const weekEls = [];
+  let monthMinHeight = 68; // одна общая высота для всех недель месяца — считаем максимум из того, что нужно самой плотной
 
   for (const week of weeks) {
     const wEl = document.createElement("div");
     wEl.className = "week";
     const rowStart = week[0].s, rowEnd = week[6].s;
+    let weekWorkBottomNeed = 0; // максимум по дням недели: сколько px снизу клетки занимает стек полосок работы
+    let weekHasPrice = false;   // хоть в одном дне недели показывается цена над капсулой
 
     // клетки
     const row = document.createElement("div");
@@ -572,9 +571,12 @@ function render() {
         const rowH = Math.min(12, step - 1);
         const tight = n > 3 ? " tight" : "";
         workStackHTML = workRecs.map((r,i) => `<span class="work-strip${tight}" style="bottom:${i*step}px;height:${rowH}px"><span class="ln"></span><span class="amt num">${compact(+r.amount||0)}</span></span>`).join("");
+        // нижняя граница стека (px от низа клетки): отступ 3 + (n-1) шагов + высота последней строки
+        weekWorkBottomNeed = Math.max(weekWorkBottomNeed, 3 + (n - 1) * step + rowH);
       }
       const bookInc = recs.reduce((s, r) => s + (r.type === "booking" && r.checkIn === day.s ? (+r.price || 0) : 0), 0);
       const bathInc = recs.reduce((s, r) => s + (r.type === "bath" && r.date === day.s ? (+r.price || 0) : 0), 0);
+      if (bookInc + bathInc > 0) weekHasPrice = true;
       const cell = document.createElement("button");
       const we = dowMon(day.s) >= 5;
       const turn = recs.some(r => r.type === "booking" && r.checkOut === day.s)
@@ -625,6 +627,11 @@ function render() {
     if (segs.length) {
       const colW = 100 / 7, H = 27, G = 6, nL = lanes.length, stackH = nL * H + (nL - 1) * G;
       const topFor = lane => `calc(48% - ${stackH / 2}px + ${lane * (H + G)}px)`;
+      // геометрия: полоса брони центрирована на 48% высоты строки — цена сверху и стек работы снизу не должны её задевать
+      const topZoneNeed = weekHasPrice ? 51 : 33; // 51 = низ цены (32+15) + зазор 4; 33 = низ номера дня (29) + зазор 4
+      monthMinHeight = Math.max(monthMinHeight, Math.ceil((topZoneNeed + stackH / 2) / 0.48));
+      if (weekWorkBottomNeed)
+        monthMinHeight = Math.max(monthMinHeight, Math.ceil((stackH / 2 + weekWorkBottomNeed + 4) / 0.52));
       const overlay = document.createElement("div");
       overlay.className = "bars";
       for (const seg of segs) {
@@ -658,9 +665,16 @@ function render() {
         }
       }
       wEl.appendChild(overlay);
+    } else if (weekWorkBottomNeed) {
+      // нет брони/бани в этой неделе — стек работы просто не должен налезать на номер дня сверху
+      monthMinHeight = Math.max(monthMinHeight, 33 + weekWorkBottomNeed + 4);
     }
     grid.appendChild(wEl);
+    weekEls.push(wEl);
   }
+  // одна и та же высота для всех недель месяца — строки остаются равными, но не сжимаются ниже того,
+  // что реально нужно самой плотной неделе (актуально для горизонтальной ориентации, где места мало)
+  for (const el of weekEls) el.style.minHeight = monthMinHeight + "px";
 
   renderSummary();
 }
