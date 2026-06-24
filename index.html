@@ -1236,7 +1236,7 @@ function download(name, content, mime) {
 function exportJson() {
   state.settings.lastBackupAt = new Date().toISOString(); save();
   download(`moy-calendar-${todayStr()}.json`, JSON.stringify(state, null, 2), "application/json");
-  showToast("Данные выгружены", "", null);
+  showToast("Бэкап готов — в окошке браузера нажми «Загрузить», файл сохранится на телефон", "", null, 6000);
 }
 /* Раз в неделю: пробуем тихо скачать бэкап автоматически (может не сработать в Safari — это ограничение
    браузера, не наше) и в любом случае показываем напоминание с кнопкой как надёжный запасной вариант.
