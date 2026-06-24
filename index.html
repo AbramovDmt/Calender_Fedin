@@ -142,7 +142,7 @@
     background: var(--surface); text-align: left;
     box-shadow: var(--cell-shadow);
   }
-  .book-price { position: absolute; top: 32px; right: 6px; font-size: 11px; font-weight: 700;
+  .book-price { position: absolute; top: 7px; right: 6px; font-size: 11px; font-weight: 700;
     color: var(--accent); white-space: nowrap; overflow: hidden; text-align: right; }
   .cell:active { background: var(--surface-2); }
   .cell.we { background: var(--weekend-bg); }
@@ -160,7 +160,7 @@
   /* Брони — капсулы поверх ячеек (главный слой, сетка не заливается, без точек/маркеров) */
   .bars { position: absolute; inset: 0; pointer-events: none; }
   .bar { position: absolute; height: 27px; border-radius: 14px; background: var(--accent);
-         color: #fff; font-size: 13px; font-weight: 700; line-height: 27px;
+         color: #fff; font-size: 15px; font-weight: 800; line-height: 27px;
          display: flex; align-items: center; padding: 0 10px; overflow: hidden; }
   .bar.bath { background: var(--terracotta); }
   .bar.sq-l { border-top-left-radius: 0; border-bottom-left-radius: 0; padding-left: 6px; }
@@ -625,12 +625,13 @@ function render() {
     }
     if (segs.length) {
       const colW = 100 / 7, H = 27, G = 6, nL = lanes.length, stackH = nL * H + (nL - 1) * G;
-      const topFor = lane => `calc(48% - ${stackH / 2}px + ${lane * (H + G)}px)`;
-      // геометрия: полоса брони центрирована на 48% высоты строки — цена сверху и стек работы снизу не должны её задевать
-      const topZoneNeed = weekHasPrice ? 51 : 33; // 51 = низ цены (32+15) + зазор 4; 33 = низ номера дня (29) + зазор 4
-      weekMinHeight = Math.max(weekMinHeight, Math.ceil((topZoneNeed + stackH / 2) / 0.48));
+      const BAR_CENTER = 0.42; // портретный режим: капсула чуть выше середины клетки (зафиксировано, не трогать без явного запроса)
+      const topFor = lane => `calc(${BAR_CENTER*100}% - ${stackH / 2}px + ${lane * (H + G)}px)`;
+      // геометрия: цена сверху и стек работы снизу не должны задевать капсулу, центрированную на BAR_CENTER
+      const topZoneNeed = weekHasPrice ? 26 : 33; // 26 = низ цены (7+15) + зазор 4; 33 = низ номера дня (29) + зазор 4
+      weekMinHeight = Math.max(weekMinHeight, Math.ceil((topZoneNeed + stackH / 2) / BAR_CENTER));
       if (weekWorkBottomNeed)
-        weekMinHeight = Math.max(weekMinHeight, Math.ceil((stackH / 2 + weekWorkBottomNeed + 4) / 0.52));
+        weekMinHeight = Math.max(weekMinHeight, Math.ceil((stackH / 2 + weekWorkBottomNeed + 4) / (1 - BAR_CENTER)));
       const overlay = document.createElement("div");
       overlay.className = "bars";
       for (const seg of segs) {
@@ -658,7 +659,7 @@ function render() {
             const joint = document.createElement("div");
             joint.className = "joint";
             joint.style.left = `calc(${(next.sc + 0.5) * colW}% - 5px)`;
-            joint.style.top = `calc(48% - ${stackH / 2}px + ${prev.lane * (H + G)}px + ${H / 2 - 5}px)`;
+            joint.style.top = `calc(${BAR_CENTER*100}% - ${stackH / 2}px + ${prev.lane * (H + G)}px + ${H / 2 - 5}px)`;
             overlay.appendChild(joint);
           }
         }
