@@ -1403,6 +1403,10 @@ function initSwipe() {
   }
 
   grid.addEventListener("touchstart", e => {
+    // защита: если предыдущий жест прервался (например, touchcancel от системного свайпа "назад"
+    // на краю экрана в Safari) и превью не успело убраться — гарантированно чистим перед новым касанием
+    if (preview) { preview.remove(); preview = null; }
+    grid.style.transition = "none"; grid.style.transform = "";
     x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; axis = null; dragging = false;
     rect = grid.getBoundingClientRect();
   }, { passive: true });
@@ -1425,9 +1429,16 @@ function initSwipe() {
   }, { passive: true });
 
   grid.addEventListener("touchend", e => {
-    if (!dragging) { x0 = y0 = null; return; }
+    if (!dragging) { x0 = y0 = null; if (preview) { preview.remove(); preview = null; } return; }
     const dx = e.changedTouches[0].clientX - x0;
     endDrag(dx, Math.abs(dx) > rect.width * 0.25);
+    x0 = y0 = null; axis = null; dragging = false;
+  }, { passive: true });
+
+  // touchcancel: системный жест/прерывание — обязательно убираем превью и возвращаем сетку на место
+  grid.addEventListener("touchcancel", () => {
+    if (dragging) endDrag(0, false);
+    else if (preview) { preview.remove(); preview = null; }
     x0 = y0 = null; axis = null; dragging = false;
   }, { passive: true });
 }
