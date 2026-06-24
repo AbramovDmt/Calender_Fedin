@@ -136,11 +136,6 @@
           flex: 1; display: flex; flex-direction: column; }
   .week { position: relative; flex: 1; display: flex; flex-direction: column; }
   .week-row { display: grid; grid-template-columns: repeat(7,1fr); flex: 1; }
-  /* Горизонтальная ориентация: высоты экрана резко меньше — не сжимаем строки поровну,
-     пусть каждая занимает столько, сколько нужно её контенту; основной портретный режим не трогаем */
-  @media (orientation: landscape) {
-    .grid, .week, .week-row { flex: none; }
-  }
   .cell {
     position: relative; min-height: 68px;
     border-top: 1px solid var(--border); border-left: 1px solid var(--border);
@@ -560,10 +555,22 @@ function render() {
     // клетки
     const row = document.createElement("div");
     row.className = "week-row";
+    let weekMinHeight = 68; // высота строки должна реально вмещать контент клеток — не зависит от того, сжимает ли flex/ориентация экрана
     for (const day of week) {
       const recs = recsOnDay(day.s);
       const others = recs.filter(r => ["work","event"].includes(r.type));
       const workRecs = recs.filter(r => r.type === "work").reverse(); // новая запись внизу, старые поднимаются выше
+      let workStackHTML = "";
+      if (workRecs.length) {
+        const n = workRecs.length;
+        // больше 3 — ужимаем шаг и высоту строки адаптивно под количество; 3 и меньше — текущий алгоритм без изменений
+        const step = n > 3 ? Math.max(8, Math.round(39 / n)) : 13;
+        const rowH = Math.min(12, step - 1);
+        const tight = n > 3 ? " tight" : "";
+        workStackHTML = workRecs.map((r,i) => `<span class="work-strip${tight}" style="bottom:${i*step}px;height:${rowH}px"><span class="ln"></span><span class="amt num">${compact(+r.amount||0)}</span></span>`).join("");
+        // строка должна вмещать: верх (число дня/цена) + низ (стек полосок), иначе абсолютно позиционированный контент вылезет за клетку
+        weekMinHeight = Math.max(weekMinHeight, 34 + 3 + (n - 1) * step + rowH + 4);
+      }
       const bookInc = recs.reduce((s, r) => s + (r.type === "booking" && r.checkIn === day.s ? (+r.price || 0) : 0), 0);
       const bathInc = recs.reduce((s, r) => s + (r.type === "bath" && r.date === day.s ? (+r.price || 0) : 0), 0);
       const cell = document.createElement("button");
@@ -575,16 +582,7 @@ function render() {
         <span class="daynum num${we ? ' we' : ''}">${day.d}</span>
         ${others.length ? `<span class="event-ind"></span>` : ``}
         ${(bookInc+bathInc) ? `<span class="book-price num">${compact(bookInc+bathInc)}</span>` : ``}
-        ${workRecs.length ? `<div class="work-stack">
-          ${(() => {
-            const n = workRecs.length;
-            // больше 3 — ужимаем шаг и высоту строки адаптивно под количество; 3 и меньше — текущий алгоритм без изменений
-            const step = n > 3 ? Math.max(8, Math.round(39 / n)) : 13;
-            const rowH = Math.min(12, step - 1);
-            const tight = n > 3 ? " tight" : "";
-            return workRecs.map((r,i) => `<span class="work-strip${tight}" style="bottom:${i*step}px;height:${rowH}px"><span class="ln"></span><span class="amt num">${compact(+r.amount||0)}</span></span>`).join("");
-          })()}
-        </div>` : ``}`;
+        ${workRecs.length ? `<div class="work-stack">${workStackHTML}</div>` : ``}`;
       cell.addEventListener("click", () => openDay(day.s));
       row.appendChild(cell);
     }
@@ -625,6 +623,7 @@ function render() {
     if (segs.length) {
       const colW = 100 / 7, H = 27, G = 6, nL = lanes.length, stackH = nL * H + (nL - 1) * G;
       const topFor = lane => `calc(48% - ${stackH / 2}px + ${lane * (H + G)}px)`;
+      weekMinHeight = Math.max(weekMinHeight, Math.ceil(stackH / 0.9));
       const overlay = document.createElement("div");
       overlay.className = "bars";
       for (const seg of segs) {
@@ -659,6 +658,7 @@ function render() {
       }
       wEl.appendChild(overlay);
     }
+    wEl.style.minHeight = weekMinHeight + "px";
     grid.appendChild(wEl);
   }
 
