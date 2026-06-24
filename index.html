@@ -1417,13 +1417,14 @@ function initSwipe() {
     x0 = e.clientX; y0 = e.clientY; axis = null; dragging = false;
     rect = grid.getBoundingClientRect();
   });
-  grid.addEventListener("pointermove", e => {
+  // move/up/cancel слушаем на document, а не на самой сетке — иначе жест "теряется", как только
+  // палец/курсор чуть выходит за пределы её границ (а так и происходит почти при каждом свайпе)
+  document.addEventListener("pointermove", e => {
     if (x0 == null || e.pointerId !== pid) return;
     const dx = e.clientX - x0, dy = e.clientY - y0;
     if (axis === null) {
       if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
       axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? "h" : "v";
-      if (axis === "h") { try { grid.setPointerCapture(pid); } catch (e) {} }
     }
     if (axis !== "h") return;
     dragging = true;
@@ -1434,17 +1435,16 @@ function initSwipe() {
     preview.style.transition = "none";
     preview.style.transform = `translateX(${dx + d * rect.width}px)`;
   });
-  grid.addEventListener("pointerup", e => {
+  document.addEventListener("pointerup", e => {
     if (e.pointerId !== pid) return;
-    try { grid.releasePointerCapture(pid); } catch (e) {}
     if (!dragging) { reset(); return; }
     const dx = e.clientX - x0;
     endDrag(dx, Math.abs(dx) > rect.width * 0.25);
     x0 = y0 = null; axis = null; dragging = false; pid = null;
   });
   // pointercancel: системный жест/прерывание (например, edge-свайп "назад" в Safari) — обязательно сбрасываем
-  grid.addEventListener("pointercancel", () => {
-    try { grid.releasePointerCapture(pid); } catch (e) {}
+  document.addEventListener("pointercancel", e => {
+    if (e.pointerId !== pid) return;
     if (dragging) endDrag(0, false);
     reset();
   });
