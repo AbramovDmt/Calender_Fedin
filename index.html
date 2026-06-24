@@ -546,13 +546,12 @@ function render() {
   grid.innerHTML = "";
   const today = todayStr();
   const weeks = monthWeeks(view.year, view.month);
-  const weekEls = [];
-  let monthMinHeight = 68; // одна общая высота для всех недель месяца — считаем максимум из того, что нужно самой плотной
 
   for (const week of weeks) {
     const wEl = document.createElement("div");
     wEl.className = "week";
     const rowStart = week[0].s, rowEnd = week[6].s;
+    let weekMinHeight = 68; // высота своей недели — у каждой недели своя, не зависит от остальных
     let weekWorkBottomNeed = 0; // максимум по дням недели: сколько px снизу клетки занимает стек полосок работы
     let weekHasPrice = false;   // хоть в одном дне недели показывается цена над капсулой
 
@@ -629,9 +628,9 @@ function render() {
       const topFor = lane => `calc(48% - ${stackH / 2}px + ${lane * (H + G)}px)`;
       // геометрия: полоса брони центрирована на 48% высоты строки — цена сверху и стек работы снизу не должны её задевать
       const topZoneNeed = weekHasPrice ? 51 : 33; // 51 = низ цены (32+15) + зазор 4; 33 = низ номера дня (29) + зазор 4
-      monthMinHeight = Math.max(monthMinHeight, Math.ceil((topZoneNeed + stackH / 2) / 0.48));
+      weekMinHeight = Math.max(weekMinHeight, Math.ceil((topZoneNeed + stackH / 2) / 0.48));
       if (weekWorkBottomNeed)
-        monthMinHeight = Math.max(monthMinHeight, Math.ceil((stackH / 2 + weekWorkBottomNeed + 4) / 0.52));
+        weekMinHeight = Math.max(weekMinHeight, Math.ceil((stackH / 2 + weekWorkBottomNeed + 4) / 0.52));
       const overlay = document.createElement("div");
       overlay.className = "bars";
       for (const seg of segs) {
@@ -667,14 +666,11 @@ function render() {
       wEl.appendChild(overlay);
     } else if (weekWorkBottomNeed) {
       // нет брони/бани в этой неделе — стек работы просто не должен налезать на номер дня сверху
-      monthMinHeight = Math.max(monthMinHeight, 33 + weekWorkBottomNeed + 4);
+      weekMinHeight = Math.max(weekMinHeight, 33 + weekWorkBottomNeed + 4);
     }
+    wEl.style.minHeight = weekMinHeight + "px";
     grid.appendChild(wEl);
-    weekEls.push(wEl);
   }
-  // одна и та же высота для всех недель месяца — строки остаются равными, но не сжимаются ниже того,
-  // что реально нужно самой плотной неделе (актуально для горизонтальной ориентации, где места мало)
-  for (const el of weekEls) el.style.minHeight = monthMinHeight + "px";
 
   renderSummary();
 }
