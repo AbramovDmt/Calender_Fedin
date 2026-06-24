@@ -1394,7 +1394,7 @@ function initSwipe() {
       }, 240);
     } else {
       grid.style.transform = "translateX(0px)";
-      if (preview) preview.style.transform = `translateX(${dir * w}px)`;
+      if (preview) preview.style.transform = `translateX(${-dir * w}px)`;
       setTimeout(() => {
         grid.style.transition = "none"; grid.style.transform = "";
         if (preview) { preview.remove(); preview = null; }
@@ -1433,7 +1433,7 @@ function initSwipe() {
     grid.style.transition = "none";
     grid.style.transform = `translateX(${dx}px)`;
     preview.style.transition = "none";
-    preview.style.transform = `translateX(${dx + d * rect.width}px)`;
+    preview.style.transform = `translateX(${dx - d * rect.width}px)`;
   });
   document.addEventListener("pointerup", e => {
     if (e.pointerId !== pid) return;
