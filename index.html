@@ -136,6 +136,11 @@
           flex: 1; display: flex; flex-direction: column; }
   .week { position: relative; flex: 1; display: flex; flex-direction: column; }
   .week-row { display: grid; grid-template-columns: repeat(7,1fr); flex: 1; }
+  /* Горизонтальная ориентация: высота экрана резко меньше — не сжимаем сетку под неё (flex:1 + overflow:hidden
+     у .grid иначе обрезают лишний контент вместо скролла страницы). Портретный режим не трогаем. */
+  @media (orientation: landscape) {
+    .grid, .week, .week-row { flex: none; }
+  }
   .cell {
     position: relative; min-height: 68px;
     border-top: 1px solid var(--border); border-left: 1px solid var(--border);
