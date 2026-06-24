@@ -351,6 +351,17 @@
   #onboard h1 { font-family: var(--font-display); font-size: 28px; margin: 0 0 12px; }
   #onboard p { color: var(--text-muted); max-width: 320px; margin: 0 0 28px; }
   #onboard .btn { flex: none; width: 100%; }
+
+  /* ============ Горизонтальная ориентация ============
+     Только переопределения для landscape — ни одно портретное правило выше не меняется.
+     Без них в landscape сетка теряла защиту от сжатия (overflow:hidden убирает автоминимум
+     высоты у флекс-айтема) и схлопывалась вместо скролла страницы, а touch-action:none
+     на .grid блокировал вертикальный скролл пальцем. */
+  @media (orientation: landscape) {
+    #app { max-width: 900px; }
+    .summary { max-width: 900px; }
+    .grid { overflow: visible; flex-shrink: 0; touch-action: pan-y; }
+  }
 </style>
 </head>
 <body>
