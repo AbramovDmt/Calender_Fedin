@@ -1317,21 +1317,34 @@ function shiftMonth(n) {
   }
   if (reduceMotion()) return apply();
   const grid = document.getElementById("grid");
-  const dist = n > 0 ? -28 : 28;
-  grid.style.transition = "transform .14s ease-in, opacity .14s ease-in";
-  grid.style.transform = `translateX(${dist}px)`;
-  grid.style.opacity = "0";
+  const rect = grid.getBoundingClientRect();
+  const dir = n > 0 ? -1 : 1; // вперёд — старое уезжает влево, новое заходит справа; назад — наоборот
+
+  // снимок старого месяца — реально уезжает в сторону, а не пропадает
+  const clone = grid.cloneNode(true);
+  clone.style.position = "fixed";
+  clone.style.top = rect.top + "px";
+  clone.style.left = rect.left + "px";
+  clone.style.width = rect.width + "px";
+  clone.style.height = rect.height + "px";
+  clone.style.margin = "0";
+  clone.style.zIndex = "35";
+  clone.style.transition = "transform .26s cubic-bezier(.2,.8,.2,1)";
+  document.body.appendChild(clone);
+
+  apply(); // подменяем контент настоящей сетки на новый месяц
+
+  grid.style.transition = "none";
+  grid.style.transform = `translateX(${-dir * 100}%)`;
+  requestAnimationFrame(() => {
+    grid.style.transition = "transform .26s cubic-bezier(.2,.8,.2,1)";
+    grid.style.transform = "translateX(0)";
+    clone.style.transform = `translateX(${dir * 100}%)`;
+  });
   setTimeout(() => {
-    apply();
-    grid.style.transition = "none";
-    grid.style.transform = `translateX(${-dist}px)`;
-    grid.style.opacity = "0";
-    requestAnimationFrame(() => {
-      grid.style.transition = "transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s ease-out";
-      grid.style.transform = "translateX(0)";
-      grid.style.opacity = "1";
-    });
-  }, 140);
+    clone.remove();
+    grid.style.transition = ""; grid.style.transform = "";
+  }, 280);
 }
 function goToday() { const d = new Date(); view = { year: d.getFullYear(), month: d.getMonth() }; render(); }
 
