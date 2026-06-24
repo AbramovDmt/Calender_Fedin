@@ -569,7 +569,7 @@ function render() {
         const tight = n > 3 ? " tight" : "";
         workStackHTML = workRecs.map((r,i) => `<span class="work-strip${tight}" style="bottom:${i*step}px;height:${rowH}px"><span class="ln"></span><span class="amt num">${compact(+r.amount||0)}</span></span>`).join("");
         // строка должна вмещать: верх (число дня/цена) + низ (стек полосок), иначе абсолютно позиционированный контент вылезет за клетку
-        weekMinHeight = Math.max(weekMinHeight, 34 + 3 + (n - 1) * step + rowH + 4);
+        weekMinHeight = Math.max(weekMinHeight, 42 + 3 + (n - 1) * step + rowH + 10);
       }
       const bookInc = recs.reduce((s, r) => s + (r.type === "booking" && r.checkIn === day.s ? (+r.price || 0) : 0), 0);
       const bathInc = recs.reduce((s, r) => s + (r.type === "bath" && r.date === day.s ? (+r.price || 0) : 0), 0);
@@ -623,7 +623,7 @@ function render() {
     if (segs.length) {
       const colW = 100 / 7, H = 27, G = 6, nL = lanes.length, stackH = nL * H + (nL - 1) * G;
       const topFor = lane => `calc(48% - ${stackH / 2}px + ${lane * (H + G)}px)`;
-      weekMinHeight = Math.max(weekMinHeight, Math.ceil(stackH / 0.9));
+      weekMinHeight = Math.max(weekMinHeight, Math.ceil(stackH / 0.85) + 14);
       const overlay = document.createElement("div");
       overlay.className = "bars";
       for (const seg of segs) {
