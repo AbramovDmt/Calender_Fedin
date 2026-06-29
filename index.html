@@ -48,6 +48,7 @@
     --event: #DD8A4A;
     --shadow: 0 2px 6px rgba(15,17,20,.12);
     --cell-shadow: inset -9px -9px 12px -10px rgba(15,17,20,.22);
+    --cell-shadow-strong: inset -9px -9px 12px -10px rgba(15,17,20,.22), inset 9px 9px 12px -10px rgba(15,17,20,.22);
     --weekend-bg: #ECEDF0;
     --turn-bg: #FBECEA;
     --joint: #D37C3F;
@@ -68,6 +69,7 @@
     --event: #DD8A4A;
     --shadow: 0 2px 8px rgba(0,0,0,.5);
     --cell-shadow: inset -9px -9px 14px -10px rgba(0,0,0,.6);
+    --cell-shadow-strong: inset -9px -9px 14px -10px rgba(0,0,0,.6), inset 9px 9px 14px -10px rgba(0,0,0,.6);
     --weekend-bg: #202227;
     --turn-bg: #271C1B;
     --joint: #DB9357;
@@ -83,6 +85,7 @@
       --event: #DD8A4A;
       --shadow: 0 2px 8px rgba(0,0,0,.5);
       --cell-shadow: inset -9px -9px 14px -10px rgba(0,0,0,.6);
+      --cell-shadow-strong: inset -9px -9px 14px -10px rgba(0,0,0,.6), inset 9px 9px 14px -10px rgba(0,0,0,.6);
       --weekend-bg: #202227;
       --turn-bg: #271C1B;
       --joint: #DB9357;
@@ -148,6 +151,7 @@
   .cell:active { background: var(--surface-2); }
   .cell.we { background: var(--weekend-bg); }
   .cell.turn { background: var(--turn-bg); }
+  .cell.key-day { box-shadow: var(--cell-shadow-strong); }
   .cell.out { background: var(--bg); box-shadow: none; }
   .cell.out.we, .cell.out.turn { background: var(--bg); }
   .daynum { position: absolute; top: 5px; left: 6px; width: 24px; height: 24px;
@@ -618,7 +622,8 @@ function buildMonthGrid(year, month, grid) {
       const we = dowMon(day.s) >= 5;
       const turn = recs.some(r => r.type === "booking" && r.checkOut === day.s)
                 && recs.some(r => r.type === "booking" && r.checkIn === day.s);
-      cell.className = "cell" + (day.inMonth ? "" : " out") + (day.s === today ? " today" : "") + (we ? " we" : "") + (turn ? " turn" : "");
+      const keyDay = recs.some(r => r.type === "booking" && (r.checkIn === day.s || r.checkOut === day.s));
+      cell.className = "cell" + (day.inMonth ? "" : " out") + (day.s === today ? " today" : "") + (we ? " we" : "") + (turn ? " turn" : "") + (keyDay ? " key-day" : "");
       cell.innerHTML = `
         <span class="daynum num${we ? ' we' : ''}">${day.d}</span>
         ${others.length ? `<span class="event-ind"></span>` : ``}
