@@ -525,10 +525,11 @@ function eventOccursOn(r, s) {
   if (!r.repeat || !r.repeat.every) return r.date === s;
   if (s < r.date) return false;
   const every = r.repeat.every;
-  if (r.repeat.unit === "month") {
+  if (r.repeat.unit === "month" || r.repeat.unit === "year") {
+    const stepMonths = r.repeat.unit === "year" ? every * 12 : every;
     const pa = parse(r.date), pb = parse(s);
     const diff = (pb.y - pa.y) * 12 + (pb.m - pa.m);
-    if (diff % every !== 0) return false;
+    if (diff % stepMonths !== 0) return false;
     return pb.d === Math.min(pa.d, daysInMonth(pb.y, pb.m));
   }
   const step = r.repeat.unit === "week" ? every * 7 : every;
@@ -537,8 +538,8 @@ function eventOccursOn(r, s) {
 function repeatLabel(rep) {
   if (!rep || !rep.every) return "";
   const n = rep.every;
-  if (n === 1) return { day: "Повтор: каждый день", week: "Повтор: каждую неделю", month: "Повтор: каждый месяц" }[rep.unit] || "";
-  const w = { day: "дней", week: "недель", month: "месяцев" }[rep.unit] || "дней";
+  if (n === 1) return { day: "Повтор: каждый день", week: "Повтор: каждую неделю", month: "Повтор: каждый месяц", year: "Повтор: каждый год" }[rep.unit] || "";
+  const w = { day: "дней", week: "недель", month: "месяцев", year: "лет" }[rep.unit] || "дней";
   return `Повтор: каждые ${n} ${w}`;
 }
 function recsOnDay(s) {
@@ -1060,6 +1061,7 @@ function openForm(type, day, editId) {
           <button type="button" data-u="day" class="${(rep.unit||'day')==='day'?'on':''}">Дни</button>
           <button type="button" data-u="week" class="${rep.unit==='week'?'on':''}">Недели</button>
           <button type="button" data-u="month" class="${rep.unit==='month'?'on':''}">Месяцы</button>
+          <button type="button" data-u="year" class="${rep.unit==='year'?'on':''}">Годы</button>
         </div></div>
       </div>
       <div class="field"><label>Комментарий</label><textarea id="f-comment">${esc(v("comment"))}</textarea></div>`;
