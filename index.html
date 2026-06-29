@@ -519,9 +519,32 @@ const money = n => (n || 0).toLocaleString("ru-RU").replace(/\s/g, ".") + " " + 
 function compact(n) { if (!n) return ""; if (n >= 1000) { const k = n/1000; return (Number.isInteger(k)?k:k.toFixed(1)) + "к"; } return String(n); }
 
 /* ---------- Выборки и расчёты ---------- */
+// Повтор события: бессрочно от даты создания, пока запись не удалят целиком (репиты — только у "Событие").
+function daysDiff(a, b) { const pa = parse(a), pb = parse(b); return Math.round((new Date(pb.y,pb.m,pb.d) - new Date(pa.y,pa.m,pa.d)) / 86400000); }
+function eventOccursOn(r, s) {
+  if (!r.repeat || !r.repeat.every) return r.date === s;
+  if (s < r.date) return false;
+  const every = r.repeat.every;
+  if (r.repeat.unit === "month") {
+    const pa = parse(r.date), pb = parse(s);
+    const diff = (pb.y - pa.y) * 12 + (pb.m - pa.m);
+    if (diff % every !== 0) return false;
+    return pb.d === Math.min(pa.d, daysInMonth(pb.y, pb.m));
+  }
+  const step = r.repeat.unit === "week" ? every * 7 : every;
+  return daysDiff(r.date, s) % step === 0;
+}
+function repeatLabel(rep) {
+  if (!rep || !rep.every) return "";
+  const n = rep.every;
+  if (n === 1) return { day: "Повтор: каждый день", week: "Повтор: каждую неделю", month: "Повтор: каждый месяц" }[rep.unit] || "";
+  const w = { day: "дней", week: "недель", month: "месяцев" }[rep.unit] || "дней";
+  return `Повтор: каждые ${n} ${w}`;
+}
 function recsOnDay(s) {
   return state.records.filter(r => {
     if (r.type === "booking") return r.checkIn <= s && s <= r.checkOut;
+    if (r.type === "event") return eventOccursOn(r, s);
     return r.date === s;
   });
 }
@@ -893,7 +916,7 @@ function recCard(r, s) {
     title = r.title; time = r.time || ""; meta = [r.contactName, r.phone].filter(Boolean).join(" · ");
     amount = money(r.amount);
   } else if (r.type === "event") {
-    title = r.title; time = r.time || ""; meta = [r.contactName, r.phone].filter(Boolean).join(" · ");
+    title = r.title; time = r.time || ""; meta = repeatLabel(r.repeat);
   }
   return `
     <div class="rec ${t.cls} ${r.done?'done':''}" data-id="${r.id}">
@@ -1022,6 +1045,7 @@ function openForm(type, day, editId) {
       <div class="switch-row"><span>Напомнить</span><div class="switch ${v("notify")?'on':''}" id="sw-notify"></div></div>
       <div class="field"><label>Комментарий</label><textarea id="f-comment">${esc(v("comment"))}</textarea></div>`;
   } else if (type === "event") {
+    const rep = r?.repeat || {};
     body = `
       <div class="field"><label>Название *</label><input type="text" id="f-title" value="${esc(v("title"))}"></div>
       <div class="row2">
@@ -1029,6 +1053,15 @@ function openForm(type, day, editId) {
         <div class="field"><label>Время <span style="font-weight:400">(пусто = весь день)</span></label><input type="time" id="f-time" value="${v("time")}"></div>
       </div>
       <div class="switch-row"><span>Напомнить</span><div class="switch ${v("notify")?'on':''}" id="sw-notify"></div></div>
+      <div class="switch-row"><span>Повторять</span><div class="switch ${rep.every?'on':''}" id="sw-repeat"></div></div>
+      <div id="repeatFields" style="${rep.every?'':'display:none'}">
+        <div class="field"><label>Каждые</label><input type="text" id="f-rep-every" inputmode="numeric" value="${rep.every||1}" style="max-width:90px"></div>
+        <div class="field"><label>Период</label><div class="seg" id="repUnit">
+          <button type="button" data-u="day" class="${(rep.unit||'day')==='day'?'on':''}">Дни</button>
+          <button type="button" data-u="week" class="${rep.unit==='week'?'on':''}">Недели</button>
+          <button type="button" data-u="month" class="${rep.unit==='month'?'on':''}">Месяцы</button>
+        </div></div>
+      </div>
       <div class="field"><label>Комментарий</label><textarea id="f-comment">${esc(v("comment"))}</textarea></div>`;
   }
 
@@ -1060,6 +1093,17 @@ function bindForm(type, day, editId) {
   let notify = false;
   const swN = document.getElementById("sw-notify");
   if (swN) { notify = swN.classList.contains("on"); swN.onclick = () => { swN.classList.toggle("on"); notify = swN.classList.contains("on"); }; }
+  // повтор события
+  let repeatOn = false, repeatUnit = "day";
+  const swRep = document.getElementById("sw-repeat");
+  if (swRep) {
+    const fields = document.getElementById("repeatFields");
+    repeatOn = swRep.classList.contains("on");
+    swRep.onclick = () => { swRep.classList.toggle("on"); repeatOn = swRep.classList.contains("on"); fields.style.display = repeatOn ? "" : "none"; };
+    const unitBtns = document.querySelectorAll("#repUnit button");
+    repeatUnit = document.querySelector("#repUnit button.on")?.dataset.u || "day";
+    unitBtns.forEach(b => b.onclick = () => { unitBtns.forEach(x => x.classList.toggle("on", x === b)); repeatUnit = b.dataset.u; });
+  }
 
   // живое форматирование: имя с большой буквы, телефон маской +7 ХХХ ХХХ-ХХ-ХХ, суммы с точкой по тысячам
   const nameInput = document.getElementById("f-guest") || document.getElementById("f-contact");
@@ -1091,7 +1135,7 @@ function bindForm(type, day, editId) {
 
   document.getElementById("f-cancel").onclick = () => day ? openDay(day) : closeSheet();
   if (editId) document.getElementById("f-del").onclick = () => { confirmDelete(editId, day || (findRec(editId).date)); };
-  document.getElementById("f-save").onclick = () => saveForm(type, day, editId, extras, depTaken, notify);
+  document.getElementById("f-save").onclick = () => saveForm(type, day, editId, extras, depTaken, notify, repeatOn, repeatUnit);
 }
 
 function val(id) { const el = document.getElementById(id); return el ? el.value.trim() : ""; }
@@ -1140,7 +1184,7 @@ function bindLiveFormat(id, fmt, snapEnd) {
   });
 }
 
-function saveForm(type, day, editId, extras, depTaken, notify) {
+function saveForm(type, day, editId, extras, depTaken, notify, repeatOn, repeatUnit) {
   let rec = editId ? findRec(editId) : { id: uid(), type, createdAt: new Date().toISOString() };
   rec.updatedAt = new Date().toISOString();
   const dep = { taken: depTaken, amount: depTaken ? numVal("f-dep-amount") : 0 };
@@ -1164,7 +1208,8 @@ function saveForm(type, day, editId, extras, depTaken, notify) {
   } else if (type === "event") {
     const title = val("f-title"), date = val("f-date");
     if (!title || !date) return flash("Название и дата обязательны");
-    Object.assign(rec, { title, date, time: val("f-time"), notify, comment: val("f-comment") });
+    const repeat = repeatOn ? { every: Math.max(1, numVal("f-rep-every") || 1), unit: repeatUnit } : null;
+    Object.assign(rec, { title, date, time: val("f-time"), notify, repeat, comment: val("f-comment") });
     if (notify) ensureNotifyPermission();
   }
 
@@ -1315,7 +1360,9 @@ function scheduleTodayReminders() {
   if (!state.settings.notifications || !("Notification" in window) || Notification.permission !== "granted") return;
   const today = todayStr(), now = new Date();
   for (const r of state.records) {
-    if (!["work","event"].includes(r.type) || !r.notify || r.date !== today || !r.time) continue;
+    if (!["work","event"].includes(r.type) || !r.notify || !r.time) continue;
+    const occursToday = r.type === "event" ? eventOccursOn(r, today) : r.date === today;
+    if (!occursToday) continue;
     const [h, m] = r.time.split(":").map(Number);
     const when = new Date(); when.setHours(h, m, 0, 0);
     const delay = when - now;
